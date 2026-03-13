@@ -89,28 +89,7 @@ jobs:
       - name: Run Laravel Pint (dry-run)
         run: ./vendor/bin/pint --test
 
-  # Job 3: Build Frontend Assets (Vite)
-  build:
-    name: Frontend Build (Vite)
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Build frontend assets
-        run: npm run build
-
-  # Job 4: Deploy (main branch only)
+  # Job 3: Deploy (main branch only)
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
