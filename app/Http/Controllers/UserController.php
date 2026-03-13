@@ -61,7 +61,6 @@ class UserController extends Controller
         ]);
     }
 
-
     public function listClients(Request $request): JsonResponse
     {
         $filters = $request->only(['search', 'limit']);
@@ -83,11 +82,10 @@ class UserController extends Controller
         $trainers = $this->userService->listTrainers($filters);
 
         return response()->json([
-        'success' => true,
+            'success' => true,
             'data' => $trainers,
         ]);
     }
-
 
     /**
      * Create new user (admin only - can create users with any role)

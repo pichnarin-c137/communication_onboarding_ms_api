@@ -17,8 +17,8 @@ class StartAppointmentRequest extends FormRequest
     {
         return [
             'start_proof_media_id' => ['required', 'uuid', 'exists:media,id'],
-            'start_latitude'       => ['required', 'numeric', 'between:-90,90'],
-            'start_longitude'      => ['required', 'numeric', 'between:-180,180'],
+            'start_latitude' => ['required', 'numeric', 'between:-90,90'],
+            'start_longitude' => ['required', 'numeric', 'between:-180,180'],
         ];
     }
 
@@ -27,7 +27,7 @@ class StartAppointmentRequest extends FormRequest
         throw new HttpResponseException(response()->json([
             'success' => false,
             'message' => 'Validation errors',
-            'errors'  => $validator->errors(),
+            'errors' => $validator->errors(),
         ], 422));
     }
 }

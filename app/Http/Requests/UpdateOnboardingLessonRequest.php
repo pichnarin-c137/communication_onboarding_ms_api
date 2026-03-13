@@ -16,9 +16,9 @@ class UpdateOnboardingLessonRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'path'               => ['nullable', 'integer', 'in:1,2,3'],
+            'path' => ['nullable', 'integer', 'in:1,2,3'],
             'lesson_document_id' => ['nullable', 'uuid', 'exists:media,id'],
-            'lesson_video_url'   => ['nullable', 'url', 'max:500'],
+            'lesson_video_url' => ['nullable', 'url', 'max:500'],
         ];
     }
 
@@ -27,7 +27,7 @@ class UpdateOnboardingLessonRequest extends FormRequest
         throw new HttpResponseException(response()->json([
             'success' => false,
             'message' => 'Validation errors',
-            'errors'  => $validator->errors(),
+            'errors' => $validator->errors(),
         ], 422));
     }
 }

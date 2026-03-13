@@ -32,10 +32,10 @@ class OnboardingService
     public function list(User $user, array $filters = [], int $perPage = 15, int $page = 1): array
     {
         $cacheKey = $this->listCacheKey($user->id);
-        $ttl      = config('coms.cache.onboarding_list_ttl', 300);
+        $ttl = config('coms.cache.onboarding_list_ttl', 300);
 
         $all = Cache::store('redis')->remember($cacheKey, $ttl, function () use ($user) {
-            $role  = $user->role->role ?? null;
+            $role = $user->role->role ?? null;
             $query = OnboardingRequest::with(['client', 'trainer', 'appointment']);
 
             if ($role === 'trainer') {
@@ -57,12 +57,12 @@ class OnboardingService
         return [
             'data' => $items,
             'meta' => [
-                'total'        => $total,
-                'per_page'     => $perPage,
+                'total' => $total,
+                'per_page' => $perPage,
                 'current_page' => $page,
-                'last_page'    => max(1, (int) ceil($total / $perPage)),
-                'from'         => $total > 0 ? ($page - 1) * $perPage + 1 : 0,
-                'to'           => min($page * $perPage, $total),
+                'last_page' => max(1, (int) ceil($total / $perPage)),
+                'from' => $total > 0 ? ($page - 1) * $perPage + 1 : 0,
+                'to' => min($page * $perPage, $total),
             ],
         ];
     }
@@ -70,7 +70,7 @@ class OnboardingService
     public function get(string $id): OnboardingRequest
     {
         $cacheKey = $this->showCacheKey($id);
-        $ttl      = config('coms.cache.onboarding_show_ttl', 600);
+        $ttl = config('coms.cache.onboarding_show_ttl', 600);
 
         return Cache::store('redis')->remember($cacheKey, $ttl, function () use ($id) {
             return OnboardingRequest::with([
@@ -84,7 +84,7 @@ class OnboardingService
     {
         // Always recalculate from DB — no cache read (per implementation rules)
         $onboarding = OnboardingRequest::findOrFail($id);
-        $result     = $this->progressService->refresh($onboarding);
+        $result = $this->progressService->refresh($onboarding);
 
         // Invalidate show cache so next read reflects updated progress
         $this->invalidateOnboarding($id, $result->trainer_id);
@@ -101,7 +101,7 @@ class OnboardingService
         }
 
         $onboarding->load(['companyInfo', 'systemAnalysis', 'policies', 'lessons']);
-        $progress  = $this->progressService->calculate($onboarding);
+        $progress = $this->progressService->calculate($onboarding);
         $threshold = config('coms.onboarding_completion_threshold', 90.0);
 
         if ($progress < $threshold) {
@@ -112,8 +112,8 @@ class OnboardingService
 
         DB::transaction(function () use ($onboarding, $progress) {
             $onboarding->update([
-                'status'              => 'completed',
-                'completed_at'        => now(),
+                'status' => 'completed',
+                'completed_at' => now(),
                 'progress_percentage' => $progress,
             ]);
 
@@ -131,7 +131,7 @@ class OnboardingService
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::error('OnboardingService complete notification failed', [
                     'onboarding_id' => $onboarding->id,
-                    'error'         => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
             }
         });
@@ -168,8 +168,8 @@ class OnboardingService
         $updateData = array_filter($data, fn ($v) => ! is_null($v));
 
         if (! empty($data['is_completed'])) {
-            $updateData['completed_at']          = now();
-            $updateData['completed_by_user_id']  = $userId;
+            $updateData['completed_at'] = now();
+            $updateData['completed_by_user_id'] = $userId;
         }
 
         $info->update($updateData);
@@ -211,9 +211,9 @@ class OnboardingService
     {
         $policy = OnboardingPolicy::create([
             'onboarding_id' => $onboarding->id,
-            'policy_name'   => $policyName,
-            'is_default'    => false,
-            'is_checked'    => false,
+            'policy_name' => $policyName,
+            'is_default' => false,
+            'is_checked' => false,
         ]);
 
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
@@ -224,8 +224,8 @@ class OnboardingService
     public function checkPolicy(OnboardingPolicy $policy, string $userId): OnboardingPolicy
     {
         $policy->update([
-            'is_checked'         => true,
-            'checked_at'         => now(),
+            'is_checked' => true,
+            'checked_at' => now(),
             'checked_by_user_id' => $userId,
         ]);
 
@@ -237,11 +237,11 @@ class OnboardingService
     public function removePolicy(OnboardingPolicy $policy): void
     {
         if ($policy->is_default) {
-            throw new DefaultPolicyCannotBeRemovedException();
+            throw new DefaultPolicyCannotBeRemovedException;
         }
 
         $onboardingId = $policy->onboarding_id;
-        $trainerId    = $policy->onboarding?->trainer_id;
+        $trainerId = $policy->onboarding?->trainer_id;
 
         $policy->delete();
 
@@ -261,7 +261,7 @@ class OnboardingService
     {
         $lesson = OnboardingLesson::create(array_merge($data, [
             'onboarding_id' => $onboarding->id,
-            'is_sent'       => false,
+            'is_sent' => false,
         ]));
 
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
@@ -272,7 +272,7 @@ class OnboardingService
     public function updateLesson(OnboardingLesson $lesson, array $data): OnboardingLesson
     {
         if ($lesson->is_sent) {
-            throw new LessonLockedAfterSendException();
+            throw new LessonLockedAfterSendException;
         }
 
         $lesson->update(array_filter($data, fn ($v) => ! is_null($v)));
@@ -284,11 +284,11 @@ class OnboardingService
     public function deleteLesson(OnboardingLesson $lesson): void
     {
         if ($lesson->is_sent) {
-            throw new LessonLockedAfterSendException();
+            throw new LessonLockedAfterSendException;
         }
 
         $onboardingId = $lesson->onboarding_id;
-        $trainerId    = $lesson->onboarding?->trainer_id;
+        $trainerId = $lesson->onboarding?->trainer_id;
 
         $lesson->delete();
 

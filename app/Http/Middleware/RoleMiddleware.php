@@ -13,7 +13,7 @@ class RoleMiddleware
     {
         $role = $request->get('auth_role');
 
-        if (! $role || !in_array(strtolower($role), array_map('strtolower', $roles))) {
+        if (! $role || ! in_array(strtolower($role), array_map('strtolower', $roles))) {
             $allowed = implode(', ', $roles);
             throw new AdminOnlyException("Access denied. Allowed roles: $allowed");
         }

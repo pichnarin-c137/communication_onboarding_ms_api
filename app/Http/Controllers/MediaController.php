@@ -19,13 +19,13 @@ class MediaController extends Controller
 
         try {
             $media = Media::create([
-                'filename'            => basename($storedPath),
-                'original_filename'   => $file->getClientOriginalName(),
-                'file_path'           => $storedPath,
-                'file_url'            => $fileUrl,
-                'file_size'           => $file->getSize(),
-                'mime_type'           => $file->getMimeType(),
-                'media_category'      => $category,
+                'filename' => basename($storedPath),
+                'original_filename' => $file->getClientOriginalName(),
+                'file_path' => $storedPath,
+                'file_url' => $fileUrl,
+                'file_size' => $file->getSize(),
+                'mime_type' => $file->getMimeType(),
+                'media_category' => $category,
                 'uploaded_by_user_id' => $request->get('auth_user_id'),
             ]);
         } catch (\Throwable $e) {
@@ -35,10 +35,10 @@ class MediaController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'id'             => $media->id,
-                'file_url'       => $media->file_url,
-                'filename'       => $media->filename,
+            'data' => [
+                'id' => $media->id,
+                'file_url' => $media->file_url,
+                'filename' => $media->filename,
                 'media_category' => $media->media_category,
             ],
         ], 201);

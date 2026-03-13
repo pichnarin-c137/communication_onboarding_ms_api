@@ -18,7 +18,7 @@ class AppointmentStudentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $students,
+            'data' => $students,
         ]);
     }
 
@@ -28,10 +28,10 @@ class AppointmentStudentController extends Controller
 
         $now = now();
         $rows = array_map(fn ($s) => array_merge($s, [
-            'id'             => (string) Str::uuid(),
+            'id' => (string) Str::uuid(),
             'appointment_id' => $appointment->id,
-            'created_at'     => $now,
-            'updated_at'     => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
         ]), $request->input('students'));
 
         AppointmentStudent::insert($rows);
@@ -39,7 +39,7 @@ class AppointmentStudentController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Students added successfully.',
-            'data'    => ['count' => count($rows)],
+            'data' => ['count' => count($rows)],
         ], 201);
     }
 
@@ -54,7 +54,7 @@ class AppointmentStudentController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Attendance marked.',
-            'data'    => ['attendance_status' => $student->fresh()->attendance_status],
+            'data' => ['attendance_status' => $student->fresh()->attendance_status],
         ]);
     }
 }

@@ -16,10 +16,10 @@ class AddStudentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'students'                     => ['required', 'array'],
-            'students.*.name'              => ['nullable', 'string', 'max:255'],
-            'students.*.phone_number'      => ['nullable', 'string', 'max:20'],
-            'students.*.profession'        => ['nullable', 'string', 'max:100'],
+            'students' => ['required', 'array'],
+            'students.*.name' => ['nullable', 'string', 'max:255'],
+            'students.*.phone_number' => ['nullable', 'string', 'max:20'],
+            'students.*.profession' => ['nullable', 'string', 'max:100'],
             'students.*.attendance_status' => ['nullable', 'in:present,absent'],
         ];
     }
@@ -29,7 +29,7 @@ class AddStudentRequest extends FormRequest
         throw new HttpResponseException(response()->json([
             'success' => false,
             'message' => 'Validation errors',
-            'errors'  => $validator->errors(),
+            'errors' => $validator->errors(),
         ], 422));
     }
 }

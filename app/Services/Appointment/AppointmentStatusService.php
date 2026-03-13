@@ -9,12 +9,12 @@ use App\Models\Appointment;
 class AppointmentStatusService
 {
     private array $transitions = [
-        'pending'      => ['leave_office', 'in_progress', 'cancelled', 'rescheduled'],
+        'pending' => ['leave_office', 'in_progress', 'cancelled', 'rescheduled'],
         'leave_office' => ['in_progress', 'cancelled'],
-        'in_progress'  => ['done', 'cancelled'],
-        'done'         => [],
-        'cancelled'    => [],
-        'rescheduled'  => [],
+        'in_progress' => ['done', 'cancelled'],
+        'done' => [],
+        'cancelled' => [],
+        'rescheduled' => [],
     ];
 
     public function validateTransition(Appointment $appt, string $to): void
@@ -36,7 +36,7 @@ class AppointmentStatusService
     public function validateLeaveOffice(Appointment $appt): void
     {
         if ($appt->location_type === 'online') {
-            throw new LeaveOfficeNotAllowedException();
+            throw new LeaveOfficeNotAllowedException;
         }
     }
 }

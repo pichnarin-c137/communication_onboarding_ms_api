@@ -21,7 +21,7 @@ class OnboardingPolicyController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $policies,
+            'data' => $policies,
         ]);
     }
 
@@ -33,7 +33,7 @@ class OnboardingPolicyController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Policy added.',
-            'data'    => $policy,
+            'data' => $policy,
         ], 201);
     }
 
@@ -46,7 +46,7 @@ class OnboardingPolicyController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Policy checked.',
-            'data'    => $updated,
+            'data' => $updated,
         ]);
     }
 

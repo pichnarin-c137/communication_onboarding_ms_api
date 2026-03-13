@@ -6,7 +6,6 @@ use App\Http\Requests\UpdateOnboardingCompanyInfoRequest;
 use App\Models\OnboardingRequest;
 use App\Services\Onboarding\OnboardingService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class OnboardingCompanyInfoController extends Controller
 {
@@ -21,7 +20,7 @@ class OnboardingCompanyInfoController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $info,
+            'data' => $info,
         ]);
     }
 
@@ -39,7 +38,7 @@ class OnboardingCompanyInfoController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Company info updated.',
-            'data'    => $updated,
+            'data' => $updated,
         ]);
     }
 }

@@ -12,6 +12,7 @@ class DemoUserSeeder extends Seeder
 {
     // Static UUIDs for demo users
     const SALE_USER_ID = 'bbbbbbbb-0000-0000-0000-000000000001';
+
     const TRAINER_USER_ID = 'bbbbbbbb-0000-0000-0000-000000000002'; // Tleang Hour
 
     const TRAINER_USER_IDS = [
@@ -81,11 +82,11 @@ class DemoUserSeeder extends Seeder
         }
 
         foreach (self::TRAINER_USER_IDS as $index => $trainerId) {
-            $firstName = 'Trainer' . ($index + 1);
+            $firstName = 'Trainer'.($index + 1);
             $lastName = 'Demo';
-            $email = 'trainer' . ($index + 1) . '@example.com';
-            $username = 'trainer' . ($index + 1);
-            $phone = '+8551000000' . str_pad(($index + 3), 2, '0', STR_PAD_LEFT); // start after +85510000002
+            $email = 'trainer'.($index + 1).'@example.com';
+            $username = 'trainer'.($index + 1);
+            $phone = '+8551000000'.str_pad(($index + 3), 2, '0', STR_PAD_LEFT); // start after +85510000002
 
             $trainer = User::updateOrCreate(
                 ['id' => $trainerId],
@@ -93,8 +94,8 @@ class DemoUserSeeder extends Seeder
                     'role_id' => $trainerRole->id,
                     'first_name' => $firstName,
                     'last_name' => $lastName,
-                    'dob' => '1990-01-' . str_pad(($index + 1), 2, '0', STR_PAD_LEFT),
-                    'address' => ($index + 1) . ' Training Road, Phnom Penh',
+                    'dob' => '1990-01-'.str_pad(($index + 1), 2, '0', STR_PAD_LEFT),
+                    'address' => ($index + 1).' Training Road, Phnom Penh',
                     'gender' => $index % 2 === 0 ? 'male' : 'female',
                     'nationality' => 'Cambodian',
                 ]

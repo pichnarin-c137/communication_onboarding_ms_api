@@ -17,10 +17,10 @@ class CompleteAppointmentRequest extends FormRequest
     {
         return [
             'end_proof_media_id' => ['required', 'uuid', 'exists:media,id'],
-            'end_latitude'       => ['required', 'numeric', 'between:-90,90'],
-            'end_longitude'      => ['required', 'numeric', 'between:-180,180'],
-            'student_count'      => ['required', 'integer', 'min:0'],
-            'completion_notes'   => ['nullable', 'string', 'max:2000'],
+            'end_latitude' => ['required', 'numeric', 'between:-90,90'],
+            'end_longitude' => ['required', 'numeric', 'between:-180,180'],
+            'student_count' => ['required', 'integer', 'min:0'],
+            'completion_notes' => ['nullable', 'string', 'max:2000'],
         ];
     }
 
@@ -29,7 +29,7 @@ class CompleteAppointmentRequest extends FormRequest
         throw new HttpResponseException(response()->json([
             'success' => false,
             'message' => 'Validation errors',
-            'errors'  => $validator->errors(),
+            'errors' => $validator->errors(),
         ], 422));
     }
 }

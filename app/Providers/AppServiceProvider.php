@@ -57,8 +57,8 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(config('coms.rate_limits.auth', 10))
                 ->by($request->ip())
                 ->response(fn () => response()->json([
-                    'success'    => false,
-                    'message'    => 'Too many login attempts. Please wait before trying again.',
+                    'success' => false,
+                    'message' => 'Too many login attempts. Please wait before trying again.',
                     'error_code' => 'RATE_LIMIT_EXCEEDED',
                 ], 429)->withHeaders(['Retry-After' => 60]));
         });
@@ -68,8 +68,8 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(config('coms.rate_limits.auth_refresh', 5))
                 ->by($request->ip())
                 ->response(fn () => response()->json([
-                    'success'    => false,
-                    'message'    => 'Too many token refresh attempts. Please wait.',
+                    'success' => false,
+                    'message' => 'Too many token refresh attempts. Please wait.',
                     'error_code' => 'RATE_LIMIT_EXCEEDED',
                 ], 429)->withHeaders(['Retry-After' => 60]));
         });
@@ -79,8 +79,8 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(config('coms.rate_limits.media_upload', 20))
                 ->by($request->get('auth_user_id', $request->ip()))
                 ->response(fn () => response()->json([
-                    'success'    => false,
-                    'message'    => 'File upload limit reached. Please wait before uploading again.',
+                    'success' => false,
+                    'message' => 'File upload limit reached. Please wait before uploading again.',
                     'error_code' => 'RATE_LIMIT_EXCEEDED',
                 ], 429)->withHeaders(['Retry-After' => 60]));
         });
@@ -90,8 +90,8 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(config('coms.rate_limits.lesson_send', 30))
                 ->by($request->get('auth_user_id', $request->ip()))
                 ->response(fn () => response()->json([
-                    'success'    => false,
-                    'message'    => 'Too many lesson send requests. Please slow down.',
+                    'success' => false,
+                    'message' => 'Too many lesson send requests. Please slow down.',
                     'error_code' => 'RATE_LIMIT_EXCEEDED',
                 ], 429)->withHeaders(['Retry-After' => 60]));
         });
@@ -101,8 +101,8 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(config('coms.rate_limits.onboarding_refresh', 10))
                 ->by($request->get('auth_user_id', $request->ip()))
                 ->response(fn () => response()->json([
-                    'success'    => false,
-                    'message'    => 'Progress refresh limit reached. Please wait a moment.',
+                    'success' => false,
+                    'message' => 'Progress refresh limit reached. Please wait a moment.',
                     'error_code' => 'RATE_LIMIT_EXCEEDED',
                 ], 429)->withHeaders(['Retry-After' => 60]));
         });
@@ -112,8 +112,8 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(config('coms.rate_limits.api', 120))
                 ->by($request->get('auth_user_id', $request->ip()))
                 ->response(fn () => response()->json([
-                    'success'    => false,
-                    'message'    => 'Too many requests. Please slow down.',
+                    'success' => false,
+                    'message' => 'Too many requests. Please slow down.',
                     'error_code' => 'RATE_LIMIT_EXCEEDED',
                 ], 429)->withHeaders(['Retry-After' => 60]));
         });

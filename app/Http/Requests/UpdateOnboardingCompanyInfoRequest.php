@@ -16,7 +16,7 @@ class UpdateOnboardingCompanyInfoRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'content'      => ['nullable', 'string'],
+            'content' => ['nullable', 'string'],
             'is_completed' => ['nullable', 'boolean'],
         ];
     }
@@ -26,7 +26,7 @@ class UpdateOnboardingCompanyInfoRequest extends FormRequest
         throw new HttpResponseException(response()->json([
             'success' => false,
             'message' => 'Validation errors',
-            'errors'  => $validator->errors(),
+            'errors' => $validator->errors(),
         ], 422));
     }
 }

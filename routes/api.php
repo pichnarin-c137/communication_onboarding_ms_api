@@ -12,21 +12,19 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OnboardingLessonController;
 use App\Http\Controllers\OnboardingPolicyController;
 use App\Http\Controllers\OnboardingSystemAnalysisController;
-use App\Http\Controllers\SystemController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Redis;
-
+use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
 
     Route::get('/healthcheck', function () {
         $status = [
-            'status'      => 'OK',
+            'status' => 'OK',
             'php_version' => phpversion(),
-            'database'    => ['status' => 'unknown'],
-            'redis'       => ['status' => 'unknown'],
+            'database' => ['status' => 'unknown'],
+            'redis' => ['status' => 'unknown'],
         ];
 
         $httpCode = 200;
@@ -34,7 +32,7 @@ Route::prefix('v1')->group(function () {
         try {
             DB::connection()->getPdo();
             $status['database'] = [
-                'status'   => 'connected',
+                'status' => 'connected',
                 'database' => DB::connection()->getDatabaseName(),
             ];
         } catch (\Exception $e) {
@@ -50,7 +48,7 @@ Route::prefix('v1')->group(function () {
             $httpCode = 500;
         }
 
-        $status['status']  = $httpCode === 500 ? 'ERROR' : 'OK';
+        $status['status'] = $httpCode === 500 ? 'ERROR' : 'OK';
         $status['message'] = $httpCode === 500
             ? 'Some services are down'
             : 'Customer Onboarding Management API is running smoothly.';
@@ -88,7 +86,6 @@ Route::prefix('v1')->group(function () {
             Route::delete('/hard-delete-user/{userId}', [UserController::class, 'hardDeleteUser']);
             Route::patch('/restore-user/{userId}', [UserController::class, 'restoreUser']);
         });
-
 
         Route::middleware(['role:admin,sale,trainer'])->group(function () {
             Route::prefix('selection')->group(function () {

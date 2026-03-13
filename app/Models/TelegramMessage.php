@@ -34,5 +34,4 @@ class TelegramMessage extends Model
     {
         return $this->belongsTo(ClientContact::class);
     }
-
 }

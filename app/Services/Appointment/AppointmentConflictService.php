@@ -15,7 +15,7 @@ class AppointmentConflictService
             ->where(function ($q) use ($start, $end) {
                 // Overlap condition: existing start < new end AND existing end > new start
                 $q->where('scheduled_start_time', '<', $end)
-                  ->where('scheduled_end_time', '>', $start);
+                    ->where('scheduled_end_time', '>', $start);
             });
 
         if ($excludeId) {

@@ -13,9 +13,9 @@ class DashboardController extends Controller
 {
     public function trainerDashboard(Request $request): JsonResponse
     {
-        $userId   = $request->get('auth_user_id');
+        $userId = $request->get('auth_user_id');
         $cacheKey = "dashboard:trainer:{$userId}";
-        $ttl      = config('coms.cache.dashboard_ttl', 180);
+        $ttl = config('coms.cache.dashboard_ttl', 180);
 
         $data = Cache::store('redis')->remember($cacheKey, $ttl, function () use ($userId) {
             $today = now()->toDateString();
@@ -44,8 +44,8 @@ class DashboardController extends Controller
                 ->orderBy('scheduled_start_time')
                 ->limit(5)
                 ->get(['id', 'title', 'appointment_type', 'location_type', 'status',
-                       'client_id', 'scheduled_date',
-                       'scheduled_start_time', 'scheduled_end_time']);
+                    'client_id', 'scheduled_date',
+                    'scheduled_start_time', 'scheduled_end_time']);
 
             $onboardingProgress = OnboardingRequest::with(['client:id,company_name'])
                 ->where('trainer_id', $userId)
@@ -53,31 +53,31 @@ class DashboardController extends Controller
                 ->orderByDesc('progress_percentage')
                 ->limit(5)
                 ->get(['id', 'request_code', 'client_id',
-                       'status', 'progress_percentage', 'created_at']);
+                    'status', 'progress_percentage', 'created_at']);
 
             return [
                 'summary' => [
-                    'total_appointments'      => $totalAppointments,
-                    'appointments_today'      => $appointmentsToday,
-                    'onboarding_in_progress'  => $onboardingInProgress,
+                    'total_appointments' => $totalAppointments,
+                    'appointments_today' => $appointmentsToday,
+                    'onboarding_in_progress' => $onboardingInProgress,
                     'lessons_sent_this_month' => $lessonsSentThisMonth,
                 ],
                 'upcoming_appointments' => $upcomingAppointments,
-                'onboarding_progress'   => $onboardingProgress,
+                'onboarding_progress' => $onboardingProgress,
             ];
         });
 
         return response()->json([
             'success' => true,
-            'data'    => $data,
+            'data' => $data,
         ]);
     }
 
     public function saleDashboard(Request $request): JsonResponse
     {
-        $userId   = $request->get('auth_user_id');
+        $userId = $request->get('auth_user_id');
         $cacheKey = "dashboard:sale:{$userId}";
-        $ttl      = config('coms.cache.dashboard_ttl', 180);
+        $ttl = config('coms.cache.dashboard_ttl', 180);
 
         $data = Cache::store('redis')->remember($cacheKey, $ttl, function () use ($userId) {
             $today = now()->toDateString();
@@ -108,8 +108,8 @@ class DashboardController extends Controller
                 ->orderBy('scheduled_start_time')
                 ->limit(5)
                 ->get(['id', 'title', 'appointment_type', 'location_type', 'status',
-                       'client_id', 'trainer_id', 'scheduled_date',
-                       'scheduled_start_time', 'scheduled_end_time']);
+                    'client_id', 'trainer_id', 'scheduled_date',
+                    'scheduled_start_time', 'scheduled_end_time']);
 
             $onboardingProgress = OnboardingRequest::with([
                 'client:id,company_name',
@@ -120,23 +120,23 @@ class DashboardController extends Controller
                 ->orderByDesc('progress_percentage')
                 ->limit(5)
                 ->get(['id', 'request_code', 'client_id', 'trainer_id',
-                       'status', 'progress_percentage', 'created_at']);
+                    'status', 'progress_percentage', 'created_at']);
 
             return [
                 'summary' => [
-                    'total_appointments'    => $totalAppointments,
-                    'demo_appointments'     => $demoAppointments,
+                    'total_appointments' => $totalAppointments,
+                    'demo_appointments' => $demoAppointments,
                     'training_appointments' => $trainingAppointments,
-                    'onboarding_completed'  => $onboardingCompleted,
+                    'onboarding_completed' => $onboardingCompleted,
                 ],
                 'upcoming_appointments' => $upcomingAppointments,
-                'onboarding_progress'   => $onboardingProgress,
+                'onboarding_progress' => $onboardingProgress,
             ];
         });
 
         return response()->json([
             'success' => true,
-            'data'    => $data,
+            'data' => $data,
         ]);
     }
 }

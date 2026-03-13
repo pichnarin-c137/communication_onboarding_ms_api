@@ -16,10 +16,10 @@ class RescheduleAppointmentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'scheduled_date'       => ['required', 'date'],
+            'scheduled_date' => ['required', 'date'],
             'scheduled_start_time' => ['required', 'date_format:H:i'],
-            'scheduled_end_time'   => ['required', 'date_format:H:i', 'after:scheduled_start_time'],
-            'reschedule_reason'    => ['required', 'string', 'max:1000'],
+            'scheduled_end_time' => ['required', 'date_format:H:i', 'after:scheduled_start_time'],
+            'reschedule_reason' => ['required', 'string', 'max:1000'],
         ];
     }
 
@@ -28,7 +28,7 @@ class RescheduleAppointmentRequest extends FormRequest
         throw new HttpResponseException(response()->json([
             'success' => false,
             'message' => 'Validation errors',
-            'errors'  => $validator->errors(),
+            'errors' => $validator->errors(),
         ], 422));
     }
 }

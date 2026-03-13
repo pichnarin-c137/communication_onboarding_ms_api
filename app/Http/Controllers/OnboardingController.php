@@ -16,17 +16,17 @@ class OnboardingController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $user    = User::findOrFail($request->get('auth_user_id'));
+        $user = User::findOrFail($request->get('auth_user_id'));
         $filters = $request->only(['status']);
         $perPage = max(1, min(100, (int) $request->input('per_page', 15)));
-        $page    = max(1, (int) $request->input('page', 1));
+        $page = max(1, (int) $request->input('page', 1));
 
         $result = $this->onboardingService->list($user, $filters, $perPage, $page);
 
         return response()->json([
             'success' => true,
-            'data'    => $result['data'],
-            'meta'    => $result['meta'],
+            'data' => $result['data'],
+            'meta' => $result['meta'],
         ]);
     }
 
@@ -36,7 +36,7 @@ class OnboardingController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $onboarding,
+            'data' => $onboarding,
         ]);
     }
 
@@ -47,7 +47,7 @@ class OnboardingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Progress refreshed.',
-            'data'    => ['progress_percentage' => $onboarding->progress_percentage],
+            'data' => ['progress_percentage' => $onboarding->progress_percentage],
         ]);
     }
 

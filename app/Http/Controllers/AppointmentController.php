@@ -23,17 +23,17 @@ class AppointmentController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $user    = User::findOrFail($request->get('auth_user_id'));
+        $user = User::findOrFail($request->get('auth_user_id'));
         $filters = $request->only(['status', 'appointment_type', 'scheduled_date', 'client_id']);
         $perPage = max(1, min(100, (int) $request->input('per_page', 15)));
-        $page    = max(1, (int) $request->input('page', 1));
+        $page = max(1, (int) $request->input('page', 1));
 
         $result = $this->appointmentService->list($user, $filters, $perPage, $page);
 
         return response()->json([
             'success' => true,
-            'data'    => $result['data'],
-            'meta'    => $result['meta'],
+            'data' => $result['data'],
+            'meta' => $result['meta'],
         ]);
     }
 
@@ -43,7 +43,7 @@ class AppointmentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $appointment,
+            'data' => $appointment,
         ]);
     }
 
@@ -57,7 +57,7 @@ class AppointmentController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Appointment created successfully.',
-            'data'    => $appointment,
+            'data' => $appointment,
         ], 201);
     }
 
@@ -69,7 +69,7 @@ class AppointmentController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Appointment updated successfully.',
-            'data'    => $updated,
+            'data' => $updated,
         ]);
     }
 
@@ -86,7 +86,7 @@ class AppointmentController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Trainer has left the office.',
-            'data'    => ['status' => $appointment->fresh()->status],
+            'data' => ['status' => $appointment->fresh()->status],
         ]);
     }
 
@@ -104,7 +104,7 @@ class AppointmentController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Appointment started.',
-            'data'    => ['status' => $appointment->fresh()->status],
+            'data' => ['status' => $appointment->fresh()->status],
         ]);
     }
 
@@ -124,7 +124,7 @@ class AppointmentController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Appointment completed.',
-            'data'    => ['status' => $appointment->fresh()->status],
+            'data' => ['status' => $appointment->fresh()->status],
         ]);
     }
 
@@ -153,9 +153,9 @@ class AppointmentController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Appointment rescheduled.',
-            'data'    => [
+            'data' => [
                 'new_appointment_id' => $newAppointment->id,
-                'status'             => $newAppointment->status,
+                'status' => $newAppointment->status,
             ],
         ]);
     }

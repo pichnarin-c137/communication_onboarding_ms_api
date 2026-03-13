@@ -17,8 +17,8 @@ class UpdateOnboardingSystemAnalysisRequest extends FormRequest
     {
         return [
             'import_employee_count' => ['nullable', 'integer', 'min:0'],
-            'connected_app_count'   => ['nullable', 'integer', 'min:0'],
-            'profile_mobile_count'  => ['nullable', 'integer', 'min:0'],
+            'connected_app_count' => ['nullable', 'integer', 'min:0'],
+            'profile_mobile_count' => ['nullable', 'integer', 'min:0'],
         ];
     }
 
@@ -27,7 +27,7 @@ class UpdateOnboardingSystemAnalysisRequest extends FormRequest
         throw new HttpResponseException(response()->json([
             'success' => false,
             'message' => 'Validation errors',
-            'errors'  => $validator->errors(),
+            'errors' => $validator->errors(),
         ], 422));
     }
 }

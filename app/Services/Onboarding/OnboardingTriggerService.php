@@ -29,26 +29,26 @@ class OnboardingTriggerService
             $requestCode = $this->generateRequestCode();
 
             $onboarding = OnboardingRequest::create([
-                'request_code'  => $requestCode,
+                'request_code' => $requestCode,
                 'appointment_id' => $appt->id,
-                'client_id'     => $appt->client_id,
-                'trainer_id'    => $appt->trainer_id,
-                'status'        => 'in_progress',
+                'client_id' => $appt->client_id,
+                'trainer_id' => $appt->trainer_id,
+                'status' => 'in_progress',
                 'progress_percentage' => 0,
             ]);
 
             // Seed default policies
             $now = now();
             $policies = array_map(fn ($name) => [
-                'id'          => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) \Illuminate\Support\Str::uuid(),
                 'onboarding_id' => $onboarding->id,
                 'policy_name' => $name,
-                'is_default'  => true,
-                'is_checked'  => false,
-                'checked_at'  => null,
+                'is_default' => true,
+                'is_checked' => false,
+                'checked_at' => null,
                 'checked_by_user_id' => null,
-                'created_at'  => $now,
-                'updated_at'  => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
             ], self::DEFAULT_POLICIES);
 
             OnboardingPolicy::insert($policies);
@@ -56,22 +56,22 @@ class OnboardingTriggerService
             // Seed empty company info
             OnboardingCompanyInfo::create([
                 'onboarding_id' => $onboarding->id,
-                'content'       => null,
-                'is_completed'  => false,
+                'content' => null,
+                'is_completed' => false,
             ]);
 
             // Seed empty system analysis
             OnboardingSystemAnalysis::create([
-                'onboarding_id'         => $onboarding->id,
+                'onboarding_id' => $onboarding->id,
                 'import_employee_count' => 0,
-                'connected_app_count'   => 0,
-                'profile_mobile_count'  => 0,
+                'connected_app_count' => 0,
+                'profile_mobile_count' => 0,
             ]);
 
             // Mark appointment
             $appt->update([
                 'is_onboarding_triggered' => true,
-                'related_onboarding_id'   => $onboarding->id,
+                'related_onboarding_id' => $onboarding->id,
             ]);
 
             // Notify creator (sale)

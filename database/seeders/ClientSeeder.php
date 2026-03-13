@@ -8,14 +8,23 @@ use Illuminate\Database\Seeder;
 class ClientSeeder extends Seeder
 {
     const CLIENT_ALPHA_ID = 'dddddddd-0000-0000-0000-000000000001';
+
     const CLIENT_BETA_ID = 'dddddddd-0000-0000-0000-000000000002';
+
     const CLIENT_GAMMA_ID = 'dddddddd-0000-0000-0000-000000000003';
+
     const CLIENT_DELTA_ID = 'dddddddd-0000-0000-0000-000000000004';
+
     const CLIENT_EPSILON_ID = 'dddddddd-0000-0000-0000-000000000005';
+
     const CLIENT_ZETA_ID = 'dddddddd-0000-0000-0000-000000000006';
+
     const CLIENT_ETA_ID = 'dddddddd-0000-0000-0000-000000000007';
+
     const CLIENT_THETA_ID = 'dddddddd-0000-0000-0000-000000000008';
+
     const CLIENT_IOTA_ID = 'dddddddd-0000-0000-0000-000000000009';
+
     const CLIENT_KAPPA_ID = 'dddddddd-0000-0000-0000-000000000010';
 
     public function run(): void
@@ -176,7 +185,7 @@ class ClientSeeder extends Seeder
                 'headquarter_address' => $headquarter_address,
                 'social_links' => json_encode($social_links),
                 'is_active' => $is_active,
-                'assigned_sale_id' => $assigned_sale_id
+                'assigned_sale_id' => $assigned_sale_id,
             ]
         );
     }

@@ -10,7 +10,6 @@ use App\Models\EmergencyContact;
 use App\Models\PersonalInformation;
 use App\Models\Role;
 use App\Models\User;
-use App\Models\System;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -24,7 +23,6 @@ class UserService
     public function __construct(
         private OtpService $otpService
     ) {}
-
 
     public function createUser(
         array $userData,
@@ -141,7 +139,6 @@ class UserService
             'contact_social_media' => $data['contact_social_media'] ?? null,
         ]);
     }
-
 
     private function uploadDocument(?UploadedFile $file, string $folder): ?string
     {
@@ -327,11 +324,11 @@ class UserService
         $query = Client::query()
             ->select('id', 'company_name', 'company_code', 'phone_number');
 
-        if (!empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $search = $filters['search'];
-            $query->where('company_name', 'like', '%' . $search . '%');
-            $query->orWhere('company_code', 'like', '%' . $search . '%');
-            $query->orWhere('phone_number', 'like', '%' . $search . '%');
+            $query->where('company_name', 'like', '%'.$search.'%');
+            $query->orWhere('company_code', 'like', '%'.$search.'%');
+            $query->orWhere('phone_number', 'like', '%'.$search.'%');
         }
 
         $sortBy = $filters['sort_by'] ?? 'company_name';
@@ -339,7 +336,7 @@ class UserService
 
         $allowedSortColumns = ['id', 'company_name', 'company_code', 'phone_number'];
 
-        if (!in_array($sortBy, $allowedSortColumns)) {
+        if (! in_array($sortBy, $allowedSortColumns)) {
             $sortBy = 'company_name';
         }
 
@@ -350,14 +347,13 @@ class UserService
         return $query->limit($limit)->get()->toArray();
     }
 
-
     public function listTrainers(array $filters = []): array
     {
         $query = User::with(['credential'])
             ->whereHas('role', fn ($q) => $q->where('role', 'trainer'))
             ->whereHas('credential');
 
-        if (!empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'ilike', "%{$search}%")
@@ -449,7 +445,6 @@ class UserService
 
         return $user;
     }
-
 
     public function softDeleteUser(string $userId): bool
     {

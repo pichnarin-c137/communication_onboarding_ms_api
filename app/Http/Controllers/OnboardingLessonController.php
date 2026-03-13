@@ -22,7 +22,7 @@ class OnboardingLessonController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $lessons,
+            'data' => $lessons,
         ]);
     }
 
@@ -34,7 +34,7 @@ class OnboardingLessonController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Lesson added.',
-            'data'    => $lesson,
+            'data' => $lesson,
         ], 201);
     }
 
@@ -47,7 +47,7 @@ class OnboardingLessonController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Lesson updated.',
-            'data'    => $updated,
+            'data' => $updated,
         ]);
     }
 

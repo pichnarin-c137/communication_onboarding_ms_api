@@ -20,7 +20,7 @@ class OnboardingSystemAnalysisController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $analysis,
+            'data' => $analysis,
         ]);
     }
 
@@ -34,7 +34,7 @@ class OnboardingSystemAnalysisController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'System analysis updated.',
-            'data'    => $updated,
+            'data' => $updated,
         ]);
     }
 }

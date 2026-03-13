@@ -31,10 +31,10 @@ class AppointmentService
     public function list(User $user, array $filters = [], int $perPage = 15, int $page = 1): array
     {
         $cacheKey = $this->listCacheKey($user->id);
-        $ttl      = config('coms.cache.appointment_list_ttl', 300);
+        $ttl = config('coms.cache.appointment_list_ttl', 300);
 
         $all = Cache::store('redis')->remember($cacheKey, $ttl, function () use ($user) {
-            $role  = $user->role->role ?? null;
+            $role = $user->role->role ?? null;
             $query = Appointment::with(['trainer', 'client', 'creator']);
 
             if ($role === 'trainer') {
@@ -60,12 +60,12 @@ class AppointmentService
         return [
             'data' => $items,
             'meta' => [
-                'total'        => $total,
-                'per_page'     => $perPage,
+                'total' => $total,
+                'per_page' => $perPage,
                 'current_page' => $page,
-                'last_page'    => max(1, (int) ceil($total / $perPage)),
-                'from'         => $total > 0 ? ($page - 1) * $perPage + 1 : 0,
-                'to'           => min($page * $perPage, $total),
+                'last_page' => max(1, (int) ceil($total / $perPage)),
+                'from' => $total > 0 ? ($page - 1) * $perPage + 1 : 0,
+                'to' => min($page * $perPage, $total),
             ],
         ];
     }
@@ -73,7 +73,7 @@ class AppointmentService
     public function get(string $id): Appointment
     {
         $cacheKey = $this->showCacheKey($id);
-        $ttl      = config('coms.cache.appointment_show_ttl', 600);
+        $ttl = config('coms.cache.appointment_show_ttl', 600);
 
         return Cache::store('redis')->remember($cacheKey, $ttl, function () use ($id) {
             return Appointment::with(['trainer', 'client', 'creator', 'students', 'materials'])
@@ -92,11 +92,11 @@ class AppointmentService
                 $data['title'] = 'Training Appointment';
             }
 
-            $creator     = User::findOrFail($creatorId);
+            $creator = User::findOrFail($creatorId);
             $creatorRole = $creator->role->role ?? null;
 
             if (($data['appointment_type'] ?? 'training') === 'demo' && $creatorRole !== 'sale') {
-                throw new DemoCreationForbiddenException();
+                throw new DemoCreationForbiddenException;
             }
 
             if (! empty($data['trainer_id'])) {
@@ -110,7 +110,7 @@ class AppointmentService
 
             $appointment = Appointment::create(array_merge($data, [
                 'creator_id' => $creatorId,
-                'status'     => 'pending',
+                'status' => 'pending',
             ]));
 
             $this->activityLogger->log(
@@ -121,7 +121,7 @@ class AppointmentService
 
             $this->invalidateListsFor($creatorId, $data['trainer_id'] ?? null);
 
-            if (!empty($appointment->trainer_id)) {
+            if (! empty($appointment->trainer_id)) {
                 $this->notifyQuietly(
                     [$appointment->trainer_id],
                     'appointment_assigned',
@@ -138,7 +138,7 @@ class AppointmentService
     public function update(Appointment $appt, array $data): Appointment
     {
         if ($appt->status !== 'pending') {
-            throw new AppointmentLockedException();
+            throw new AppointmentLockedException;
         }
 
         $oldTrainerId = $appt->trainer_id;
@@ -166,8 +166,8 @@ class AppointmentService
         $this->statusService->validateLeaveOffice($appt);
 
         $appt->update([
-            'status'          => 'leave_office',
-            'leave_office_at'  => now(),
+            'status' => 'leave_office',
+            'leave_office_at' => now(),
             'leave_office_lat' => $lat,
             'leave_office_lng' => $lng,
         ]);
@@ -193,20 +193,20 @@ class AppointmentService
         // leave_office — once a trainer is physically en route, the time restriction is moot.
         if ($appt->status !== 'leave_office') {
             $scheduledStart = \Carbon\Carbon::parse(
-                $appt->scheduled_date->toDateString() . ' ' . $appt->scheduled_start_time
+                $appt->scheduled_date->toDateString().' '.$appt->scheduled_start_time
             );
 
             if (now()->lt($scheduledStart->subMinutes(30))) {
-                throw new AppointmentTimeTooEarlyException();
+                throw new AppointmentTimeTooEarlyException;
             }
         }
 
         $appt->update([
-            'status'               => 'in_progress',
+            'status' => 'in_progress',
             'start_proof_media_id' => $proofMediaId,
-            'start_lat'            => $lat,
-            'start_lng'            => $lng,
-            'actual_start_time'    => now(),
+            'start_lat' => $lat,
+            'start_lng' => $lng,
+            'actual_start_time' => now(),
         ]);
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
@@ -233,13 +233,13 @@ class AppointmentService
         $this->statusService->validateTransition($appt, 'done');
 
         $appt->update([
-            'status'             => 'done',
+            'status' => 'done',
             'end_proof_media_id' => $proofMediaId,
-            'end_lat'            => $lat,
-            'end_lng'            => $lng,
-            'actual_end_time'    => now(),
-            'student_count'      => $count,
-            'completion_notes'   => $notes,
+            'end_lat' => $lat,
+            'end_lng' => $lng,
+            'actual_end_time' => now(),
+            'student_count' => $count,
+            'completion_notes' => $notes,
         ]);
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
@@ -274,10 +274,10 @@ class AppointmentService
         $this->statusService->validateTransition($appt, 'cancelled');
 
         $appt->update([
-            'status'               => 'cancelled',
-            'cancellation_reason'  => $reason,
+            'status' => 'cancelled',
+            'cancellation_reason' => $reason,
             'cancelled_by_user_id' => $userId,
-            'cancelled_at'         => now(),
+            'cancelled_at' => now(),
         ]);
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
@@ -313,7 +313,7 @@ class AppointmentService
             }
 
             $appt->update([
-                'status'            => 'rescheduled',
+                'status' => 'rescheduled',
                 'reschedule_reason' => $newSchedule['reschedule_reason'] ?? null,
             ]);
 
@@ -324,16 +324,16 @@ class AppointmentService
                     'physical_location', 'is_continued_session',
                 ]),
                 [
-                    'scheduled_date'       => $newSchedule['scheduled_date'],
+                    'scheduled_date' => $newSchedule['scheduled_date'],
                     'scheduled_start_time' => $newSchedule['scheduled_start_time'],
-                    'scheduled_end_time'   => $newSchedule['scheduled_end_time'],
-                    'status'               => 'pending',
+                    'scheduled_end_time' => $newSchedule['scheduled_end_time'],
+                    'status' => 'pending',
                 ]
             ));
 
             $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
 
-            if (!empty($newAppt->trainer_id)) {
+            if (! empty($newAppt->trainer_id)) {
                 $this->notifyQuietly(
                     [$newAppt->trainer_id],
                     'appointment_rescheduled',
@@ -357,7 +357,7 @@ class AppointmentService
             $this->notificationService->notify($userIds, $type, $title, $body, $meta);
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('AppointmentService notification failed', [
-                'type'  => $type,
+                'type' => $type,
                 'error' => $e->getMessage(),
             ]);
         }
