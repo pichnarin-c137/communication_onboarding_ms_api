@@ -32,5 +32,6 @@ vendor
 CLAUDE.md
 /docs
 /seeders
+/postman
 postman_collection.json
 dev.sh
