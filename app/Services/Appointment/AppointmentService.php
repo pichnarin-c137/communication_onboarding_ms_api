@@ -10,8 +10,10 @@ use App\Models\User;
 use App\Services\Logging\ActivityLogger;
 use App\Services\Notification\NotificationService;
 use App\Services\Onboarding\OnboardingTriggerService;
+use App\Services\Telegram\TelegramGroupService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class AppointmentService
 {
@@ -22,11 +24,10 @@ class AppointmentService
         private DemoCompletionService $demoCompletionService,
         private ActivityLogger $activityLogger,
         private NotificationService $notificationService,
+        private TelegramGroupService $telegramGroupService,
     ) {}
 
-    // -------------------------------------------------------------------------
     // Read operations (cached)
-    // -------------------------------------------------------------------------
 
     public function list(User $user, array $filters = [], int $perPage = 15, int $page = 1): array
     {
@@ -38,10 +39,12 @@ class AppointmentService
             $query = Appointment::with(['trainer', 'client', 'creator']);
 
             if ($role === 'trainer') {
-                $query->where('trainer_id', $user->id);
-            } elseif ($role === 'sale') {
-                $query->where('creator_id', $user->id);
+                $query->where(function ($q) use ($user) {
+                    $q->where('trainer_id', $user->id)
+                      ->orWhere('creator_id', $user->id);
+                });
             }
+            // sale and admin see all appointments
 
             return $query->orderByDesc('scheduled_date')->get();
         });
@@ -81,13 +84,11 @@ class AppointmentService
         });
     }
 
-    // -------------------------------------------------------------------------
     // Write operations (with cache invalidation)
-    // -------------------------------------------------------------------------
 
     public function create(array $data, string $creatorId): Appointment
     {
-        return DB::transaction(function () use ($data, $creatorId) {
+        $appointment = DB::transaction(function () use ($data, $creatorId) {
             if (empty($data['title'])) {
                 $data['title'] = 'Training Appointment';
             }
@@ -119,20 +120,29 @@ class AppointmentService
                 ['appointment_id' => $appointment->id]
             );
 
-            $this->invalidateListsFor($creatorId, $data['trainer_id'] ?? null);
-
-            if (! empty($appointment->trainer_id)) {
-                $this->notifyQuietly(
-                    [$appointment->trainer_id],
-                    'appointment_assigned',
-                    'New Appointment Assigned',
-                    "You have a new appointment '{$appointment->title}' scheduled on {$appointment->scheduled_date->format('M d, Y')}.",
-                    ['type' => 'appointment', 'id' => $appointment->id]
-                );
-            }
-
             return $appointment;
         });
+
+        // Cache invalidation must run after the transaction commits so that
+        // any subsequent cache-miss query sees the newly inserted row.
+        $this->invalidateListsFor($creatorId, $data['trainer_id'] ?? null);
+
+        if (! empty($appointment->trainer_id)) {
+            $this->notifyQuietly(
+                [$appointment->trainer_id],
+                'appointment_assigned',
+                'New Appointment Assigned',
+                "You have a new appointment '{$appointment->title}' scheduled on {$appointment->scheduled_date->format('M d, Y')}.",
+                ['type' => 'appointment', 'id' => $appointment->id]
+            );
+        }
+
+        // Telegram hook: notify client group when a training appointment is scheduled
+        if (($appointment->appointment_type ?? 'training') === 'training') {
+            $this->notifyClientTelegramQuietly($appointment, 'training_scheduled');
+        }
+
+        return $appointment;
     }
 
     public function update(Appointment $appt, array $data): Appointment
@@ -228,12 +238,14 @@ class AppointmentService
         float $lat,
         float $lng,
         int $count,
-        ?string $notes
+        ?string $notes,
+        ?string $completingUserId = null
     ): void {
         $this->statusService->validateTransition($appt, 'done');
 
         $appt->update([
             'status' => 'done',
+            'trainer_id' => $appt->trainer_id ?? $completingUserId,
             'end_proof_media_id' => $proofMediaId,
             'end_lat' => $lat,
             'end_lng' => $lng,
@@ -255,6 +267,11 @@ class AppointmentService
         }
 
         $fresh = $appt->fresh();
+
+        // Telegram hook: notify client group when a training appointment is completed
+        if ($fresh->appointment_type === 'training') {
+            $this->notifyClientTelegramQuietly($fresh, 'training_completed');
+        }
 
         if ($fresh->appointment_type === 'training' && ! $fresh->is_onboarding_triggered && ! $fresh->is_continued_session) {
             $this->onboardingTriggerService->trigger($fresh);
@@ -299,7 +316,7 @@ class AppointmentService
 
     public function reschedule(Appointment $appt, array $newSchedule): Appointment
     {
-        return DB::transaction(function () use ($appt, $newSchedule) {
+        $newAppt = DB::transaction(function () use ($appt, $newSchedule) {
             $this->statusService->validateTransition($appt, 'rescheduled');
 
             if (! empty($appt->trainer_id)) {
@@ -317,7 +334,7 @@ class AppointmentService
                 'reschedule_reason' => $newSchedule['reschedule_reason'] ?? null,
             ]);
 
-            $newAppt = Appointment::create(array_merge(
+            return Appointment::create(array_merge(
                 $appt->only([
                     'title', 'appointment_type', 'location_type',
                     'trainer_id', 'client_id', 'creator_id', 'notes', 'meeting_link',
@@ -330,42 +347,78 @@ class AppointmentService
                     'status' => 'pending',
                 ]
             ));
-
-            $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
-
-            if (! empty($newAppt->trainer_id)) {
-                $this->notifyQuietly(
-                    [$newAppt->trainer_id],
-                    'appointment_rescheduled',
-                    'Appointment Rescheduled',
-                    "Appointment '{$newAppt->title}' has been rescheduled to {$newAppt->scheduled_date->format('M d, Y')}.",
-                    ['type' => 'appointment', 'id' => $newAppt->id]
-                );
-            }
-
-            return $newAppt;
         });
+
+        $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
+
+        if (! empty($newAppt->trainer_id)) {
+            $this->notifyQuietly(
+                [$newAppt->trainer_id],
+                'appointment_rescheduled',
+                'Appointment Rescheduled',
+                "Appointment '{$newAppt->title}' has been rescheduled to {$newAppt->scheduled_date->format('M d, Y')}.",
+                ['type' => 'appointment', 'id' => $newAppt->id]
+            );
+        }
+
+        return $newAppt;
     }
 
-    // -------------------------------------------------------------------------
     // Helpers
-    // -------------------------------------------------------------------------
 
     private function notifyQuietly(array $userIds, string $type, string $title, string $body, array $meta): void
     {
         try {
             $this->notificationService->notify($userIds, $type, $title, $body, $meta);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('AppointmentService notification failed', [
+            Log::error('AppointmentService notification failed', [
                 'type' => $type,
                 'error' => $e->getMessage(),
             ]);
         }
     }
 
-    // -------------------------------------------------------------------------
+    /**
+     * Send a Telegram notification to the client's connected group.
+     * Failures are caught and logged — they must never propagate to break the core operation.
+     */
+    private function notifyClientTelegramQuietly(Appointment $appointment, string $messageType): void
+    {
+        try {
+            $clientId = $appointment->client_id;
+
+            if (! $clientId) {
+                return;
+            }
+
+            $client  = $appointment->client;
+            $trainer = $appointment->trainer;
+
+            $variables = match ($messageType) {
+                'training_scheduled' => [
+                    'client_name'  => $client?->company_name ?? 'Client',
+                    'date'         => $appointment->scheduled_date->format('d M Y'),
+                    'time'         => $appointment->scheduled_start_time,
+                    'trainer_name' => $trainer?->name ?? 'Trainer',
+                ],
+                'training_completed' => [
+                    'client_name' => $client?->company_name ?? 'Client',
+                    'date'        => $appointment->scheduled_date->format('d M Y'),
+                ],
+                default => [],
+            };
+
+            $this->telegramGroupService->notifyClient($clientId, $messageType, $variables);
+        } catch (\Throwable $e) {
+            Log::error('AppointmentService Telegram notification failed', [
+                'appointment_id' => $appointment->id,
+                'message_type'   => $messageType,
+                'error'          => $e->getMessage(),
+            ]);
+        }
+    }
+
     // Cache invalidation helpers
-    // -------------------------------------------------------------------------
 
     private function invalidateAppointment(string $appointmentId, ?string $creatorId, ?string ...$trainerIds): void
     {

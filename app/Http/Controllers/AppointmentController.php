@@ -118,7 +118,8 @@ class AppointmentController extends Controller
             (float) $request->input('end_latitude'),
             (float) $request->input('end_longitude'),
             (int) $request->input('student_count'),
-            $request->input('completion_notes')
+            $request->input('completion_notes'),
+            $request->get('auth_user_id')
         );
 
         return response()->json([

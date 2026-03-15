@@ -14,9 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Register custom middleware aliases
         $middleware->alias([
-            'jwt.auth' => \App\Http\Middleware\JwtAuthenticate::class,
-            'admin.only' => \App\Http\Middleware\AdminOnly::class,
-            'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'jwt.auth'          => \App\Http\Middleware\JwtAuthenticate::class,
+            'admin.only'        => \App\Http\Middleware\AdminOnly::class,
+            'role'              => \App\Http\Middleware\RoleMiddleware::class,
+            'telegram.webhook'  => \App\Http\Middleware\VerifyTelegramWebhookSecret::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

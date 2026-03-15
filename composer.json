@@ -9,7 +9,9 @@
         "php": "^8.2",
         "firebase/php-jwt": "^7.0",
         "laravel/framework": "^12.0",
+        "laravel/horizon": "^5.45",
         "laravel/socialite": "^5.24",
+        "laravel/telescope": "^5.18",
         "laravel/tinker": "^2.10.1"
     },
     "require-dev": {

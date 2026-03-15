@@ -3,9 +3,15 @@
 namespace App\Services\Onboarding;
 
 use App\Models\OnboardingRequest;
+use App\Services\Telegram\TelegramGroupService;
+use Illuminate\Support\Facades\Log;
 
 class OnboardingProgressService
 {
+    public function __construct(
+        private TelegramGroupService $telegramGroupService,
+    ) {}
+
     public function calculate(OnboardingRequest $onboarding): float
     {
         $total = 0;
@@ -58,5 +64,33 @@ class OnboardingProgressService
         $onboarding->update(['progress_percentage' => $percentage]);
 
         return $onboarding->fresh();
+    }
+
+    /**
+     * Fire a Telegram notification when an onboarding step is completed.
+     * Failures are caught and logged — they must never break the core operation.
+     *
+     * @param  OnboardingRequest  $onboarding   The onboarding request the step belongs to
+     * @param  string             $stepName     Human-readable step name (e.g. "Company Information")
+     * @param  float              $progress     Current progress percentage (0–100)
+     */
+    public function notifyStepCompleted(OnboardingRequest $onboarding, string $stepName, float $progress): void
+    {
+        try {
+            $clientId   = $onboarding->client_id;
+            $clientName = $onboarding->client?->company_name ?? 'Client';
+
+            $this->telegramGroupService->notifyClient($clientId, 'onboarding_step_completed', [
+                'client_name' => $clientName,
+                'step_name'   => $stepName,
+                'progress'    => number_format($progress, 2),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('OnboardingProgressService Telegram notification failed', [
+                'onboarding_id' => $onboarding->id,
+                'step_name'     => $stepName,
+                'error'         => $e->getMessage(),
+            ]);
+        }
     }
 }

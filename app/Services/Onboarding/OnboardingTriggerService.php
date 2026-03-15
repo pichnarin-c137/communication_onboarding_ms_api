@@ -8,8 +8,10 @@ use App\Models\OnboardingPolicy;
 use App\Models\OnboardingRequest;
 use App\Models\OnboardingSystemAnalysis;
 use App\Services\Notification\NotificationService;
+use App\Services\Telegram\TelegramGroupService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class OnboardingTriggerService
 {
@@ -20,12 +22,13 @@ class OnboardingTriggerService
     ];
 
     public function __construct(
-        private NotificationService $notificationService
+        private NotificationService $notificationService,
+        private TelegramGroupService $telegramGroupService,
     ) {}
 
     public function trigger(Appointment $appt): OnboardingRequest
     {
-        return DB::transaction(function () use ($appt) {
+        $onboarding = DB::transaction(function () use ($appt) {
             $requestCode = $this->generateRequestCode();
 
             $onboarding = OnboardingRequest::create([
@@ -74,40 +77,52 @@ class OnboardingTriggerService
                 'related_onboarding_id' => $onboarding->id,
             ]);
 
-            // Notify creator (sale)
-            try {
-                $this->notificationService->notify(
-                    [$appt->creator_id],
-                    'onboarding_created',
-                    'Onboarding Request Created',
-                    "Onboarding request {$requestCode} has been created automatically after completing the training appointment.",
-                    ['type' => 'onboarding_request', 'id' => $onboarding->id]
-                );
-
-                // If trainer is different from creator, also notify trainer
-                if ($appt->trainer_id && $appt->trainer_id !== $appt->creator_id) {
-                    $this->notificationService->notify(
-                        [$appt->trainer_id],
-                        'onboarding_created',
-                        'Onboarding Request Assigned',
-                        "You have been assigned to onboarding request {$requestCode}.",
-                        ['type' => 'onboarding_request', 'id' => $onboarding->id]
-                    );
-                }
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('OnboardingTriggerService notification failed', [
-                    'onboarding_id' => $onboarding->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-
-            // Invalidate onboarding list caches for trainer and sale (creator)
-            foreach (array_unique(array_filter([$appt->trainer_id, $appt->creator_id])) as $userId) {
-                Cache::store('redis')->forget("onboarding:list:{$userId}");
-            }
-
             return $onboarding;
         });
+
+        // Notifications and cache invalidation run after the transaction commits
+        // so that any cache-miss query sees the newly inserted rows.
+        try {
+            $this->notificationService->notify(
+                [$appt->creator_id],
+                'onboarding_created',
+                'Onboarding Request Created',
+                "Onboarding request {$onboarding->request_code} has been created automatically after completing the training appointment.",
+                ['type' => 'onboarding_request', 'id' => $onboarding->id]
+            );
+
+            if ($appt->trainer_id && $appt->trainer_id !== $appt->creator_id) {
+                $this->notificationService->notify(
+                    [$appt->trainer_id],
+                    'onboarding_created',
+                    'Onboarding Request Assigned',
+                    "You have been assigned to onboarding request {$onboarding->request_code}.",
+                    ['type' => 'onboarding_request', 'id' => $onboarding->id]
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::error('OnboardingTriggerService notification failed', [
+                'onboarding_id' => $onboarding->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        try {
+            $this->telegramGroupService->notifyClient($appt->client_id, 'onboarding_started', [
+                'client_name' => $appt->client?->company_name ?? 'Client',
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('OnboardingTriggerService Telegram notification failed', [
+                'onboarding_id' => $onboarding->id,
+                'error'         => $e->getMessage(),
+            ]);
+        }
+
+        foreach (array_unique(array_filter([$appt->trainer_id, $appt->creator_id])) as $userId) {
+            Cache::store('redis')->forget("onboarding:list:{$userId}");
+        }
+
+        return $onboarding;
     }
 
     private function generateRequestCode(): string
