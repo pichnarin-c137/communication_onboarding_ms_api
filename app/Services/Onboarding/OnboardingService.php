@@ -25,9 +25,7 @@ class OnboardingService
         private NotificationService $notificationService
     ) {}
 
-    // -------------------------------------------------------------------------
     // Read operations (cached)
-    // -------------------------------------------------------------------------
 
     public function list(User $user, array $filters = [], int $perPage = 15, int $page = 1): array
     {
@@ -151,9 +149,7 @@ class OnboardingService
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
     }
 
-    // -------------------------------------------------------------------------
     // Company Info
-    // -------------------------------------------------------------------------
 
     public function getCompanyInfo(OnboardingRequest $onboarding): OnboardingCompanyInfo
     {
@@ -178,9 +174,7 @@ class OnboardingService
         return $info->fresh();
     }
 
-    // -------------------------------------------------------------------------
     // System Analysis
-    // -------------------------------------------------------------------------
 
     public function getSystemAnalysis(OnboardingRequest $onboarding): OnboardingSystemAnalysis
     {
@@ -198,9 +192,7 @@ class OnboardingService
         return $analysis->fresh();
     }
 
-    // -------------------------------------------------------------------------
     // Policies
-    // -------------------------------------------------------------------------
 
     public function listPolicies(OnboardingRequest $onboarding): Collection
     {
@@ -248,9 +240,7 @@ class OnboardingService
         $this->invalidateOnboarding($onboardingId, $trainerId);
     }
 
-    // -------------------------------------------------------------------------
     // Lessons
-    // -------------------------------------------------------------------------
 
     public function listLessons(OnboardingRequest $onboarding): Collection
     {
@@ -301,9 +291,7 @@ class OnboardingService
         $this->invalidateOnboarding($lesson->onboarding_id, $lesson->onboarding?->trainer_id);
     }
 
-    // -------------------------------------------------------------------------
     // Cache invalidation helpers
-    // -------------------------------------------------------------------------
 
     public function invalidateOnboarding(string $onboardingId, ?string $trainerId = null): void
     {

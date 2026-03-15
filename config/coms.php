@@ -40,4 +40,15 @@ return [
     */
     'onboarding_completion_threshold' => env('COMS_ONBOARDING_COMPLETION_THRESHOLD', 90.0),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Telegram Integration
+    |--------------------------------------------------------------------------
+    */
+    'telegram_setup_token_ttl'      => env('COMS_TELEGRAM_SETUP_TOKEN_TTL', 3600),
+    'telegram_message_retry_limit'  => env('COMS_TELEGRAM_MESSAGE_RETRY_LIMIT', 3),
+    'telegram_webhook_secret'       => env('TELEGRAM_WEBHOOK_SECRET', ''),
+    'telegram_default_language'     => env('COMS_TELEGRAM_DEFAULT_LANGUAGE', 'en'),
+    'telegram_supported_languages'  => ['en', 'km'],
+
 ];

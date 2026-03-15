@@ -13,6 +13,9 @@ use App\Services\Onboarding\LessonSendService;
 use App\Services\Onboarding\OnboardingProgressService;
 use App\Services\Onboarding\OnboardingService;
 use App\Services\Onboarding\OnboardingTriggerService;
+use App\Services\Telegram\TelegramGroupService;
+use App\Services\Telegram\TelegramMessageTemplate;
+use App\Services\Telegram\TelegramWebhookService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -40,6 +43,16 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(OnboardingProgressService::class);
         $this->app->singleton(LessonSendService::class);
         $this->app->singleton(OnboardingService::class);
+
+        // Telegram integration layer
+        $this->app->singleton(TelegramGroupService::class, fn ($app) => new TelegramGroupService(
+            $app->make(TelegramService::class),
+            $app->make(TelegramMessageTemplate::class),
+        ));
+
+        $this->app->singleton(TelegramWebhookService::class, fn ($app) => new TelegramWebhookService(
+            $app->make(TelegramGroupService::class),
+        ));
     }
 
     /**
