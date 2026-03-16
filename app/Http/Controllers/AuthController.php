@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InvalidTokenException;
 use App\Http\Requests\LoginRequest;
-use App\Http\Requests\RefreshTokenRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\VerifyOtpRequest;
 use App\Services\AuthService;
 use App\Services\JwtService;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AuthController extends Controller
 {
@@ -77,19 +78,38 @@ class AuthController extends Controller
             $request->otp
         );
 
+        $refreshToken = $tokens['refresh_token'];
+        unset($tokens['refresh_token']);
+
         return response()->json([
             'success' => true,
             'message' => 'Login successful',
             'data' => $tokens,
-        ]);
+        ])->cookie(
+            'refresh_token',
+            $refreshToken,
+            config('jwt.refresh_token_expiry', 43200),
+            '/api/v1/auth',
+            null,
+            $request->secure(),
+            true,
+            false,
+            'Strict'
+        );
     }
 
     /**
      * Refresh access token
      */
-    public function refreshToken(RefreshTokenRequest $request): JsonResponse
+    public function refreshToken(Request $request): JsonResponse
     {
-        $tokens = $this->jwtService->refreshAccessToken($request->refresh_token);
+        $refreshToken = $request->cookie('refresh_token');
+
+        if (! $refreshToken) {
+            throw new InvalidTokenException('No refresh token provided.');
+        }
+
+        $tokens = $this->jwtService->refreshAccessToken($refreshToken);
 
         return response()->json([
             'success' => true,
@@ -101,13 +121,17 @@ class AuthController extends Controller
     /**
      * Logout (revoke refresh token)
      */
-    public function logout(RefreshTokenRequest $request): JsonResponse
+    public function logout(Request $request): JsonResponse
     {
-        $this->authService->logout($request->refresh_token);
+        $refreshToken = $request->cookie('refresh_token');
+
+        if ($refreshToken) {
+            $this->authService->logout($refreshToken);
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Logged out successfully',
-        ]);
+        ])->withoutCookie('refresh_token', '/api/v1/auth');
     }
 }
