@@ -81,6 +81,8 @@ class AuthController extends Controller
         $refreshToken = $tokens['refresh_token'];
         unset($tokens['refresh_token']);
 
+        $isSecure = str_starts_with(config('app.url', ''), 'https');
+
         return response()->json([
             'success' => true,
             'message' => 'Login successful',
@@ -91,10 +93,10 @@ class AuthController extends Controller
             config('jwt.refresh_token_expiry', 43200),
             '/api/v1/auth',
             null,
-            $request->secure(),
+            $isSecure,
             true,
             false,
-            'Strict'
+            $isSecure ? 'None' : 'Lax'
         );
     }
 
