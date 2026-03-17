@@ -1,72 +1,95 @@
 #!/usr/bin/env bash
 # dev.sh — COMS Dev Environment
-# Starts: Laravel Server, Horizon (queue), Cloudflare Tunnel
-# Auto-updates APP_URL + TELEGRAM_WEBHOOK_URL and registers webhook
+# Starts: Laravel, Queue Worker, Cloudflare Tunnel (coms-local), Vue Frontend
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/.env"
-FRONTEND_DIR="$SCRIPT_DIR/../../frontend_vue/automate_training_progress_management_system_version_1/.env"
+FRONTEND_DIR="$SCRIPT_DIR/../../frontend_vue/automate_training_progress_management_system_version_1"
 LOG_DIR="$SCRIPT_DIR/storage/logs"
-CF_LOG="$LOG_DIR/cloudflared.log"
 
-PIDS=()
 cleanup() {
     echo ""
     echo "Shutting down..."
-    for pid in "${PIDS[@]}"; do
-        kill "$pid" 2>/dev/null || true
-    done
+    pkill -f "php artisan serve" 2>/dev/null || true
+    pkill -f "php artisan queue:work" 2>/dev/null || true
+    pkill -f "cloudflared tunnel run coms-local" 2>/dev/null || true
+    fuser -k 5173/tcp 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
 cd "$SCRIPT_DIR"
 
-php artisan serve --port=8000 &>/dev/null &
-PIDS+=($!)
+# Kill any stale processes from previous runs before starting fresh
+echo "Cleaning up any previous processes..."
+pkill -f "php artisan serve" 2>/dev/null || true
+pkill -f "php artisan queue:work" 2>/dev/null || true
+pkill -f "cloudflared tunnel run coms-local" 2>/dev/null || true
+fuser -k 5173/tcp 2>/dev/null || true
+sleep 1
 
-> "$CF_LOG"
-cloudflared tunnel --url http://localhost:8000 2>"$CF_LOG" &
-PIDS+=($!)
+# Laravel
+php artisan serve --host=127.0.0.1 --port=8000 >> "$LOG_DIR/laravel.log" 2>&1 &
 
-echo "Waiting for Cloudflare tunnel URL..."
-TUNNEL_URL=""
-for i in $(seq 1 30); do
-    TUNNEL_URL=$(grep -oP 'https://[a-z0-9\-]+\.trycloudflare\.com' "$CF_LOG" 2>/dev/null | head -1)
-    [[ -n "$TUNNEL_URL" ]] && break
+# Queue worker
+php artisan queue:work >> "$LOG_DIR/worker.log" 2>&1 &
+
+# Cloudflare named tunnel
+> "$LOG_DIR/cloudflared.log"
+cloudflared tunnel run coms-local >> "$LOG_DIR/cloudflared.log" 2>&1 &
+
+# Wait for tunnel to connect
+echo "Waiting for tunnel to connect..."
+for i in $(seq 1 20); do
+    if grep -q "Registered tunnel connection" "$LOG_DIR/cloudflared.log" 2>/dev/null; then
+        break
+    fi
     sleep 1
 done
 
-if [[ -z "$TUNNEL_URL" ]]; then
-    echo "ERROR: Could not detect tunnel URL after 30s. Check $CF_LOG"
-    exit 1
+# Give Cloudflare edge a moment to fully propagate the tunnel before Telegram tries to verify it
+sleep 5
+
+# Register Telegram webhook — retry up to 3 times
+php artisan optimize:clear 2>/dev/null || true
+WEBHOOK_REGISTERED=false
+for attempt in 1 2 3; do
+    if php artisan telegram:set-webhook 2>&1; then
+        WEBHOOK_REGISTERED=true
+        break
+    fi
+    echo "Webhook attempt $attempt failed, retrying in 5s..."
+    sleep 5
+done
+if [ "$WEBHOOK_REGISTERED" = false ]; then
+    echo "  WARNING: Webhook registration failed. Run manually: php artisan telegram:set-webhook"
 fi
 
-sed -i "s|^APP_URL=.*|APP_URL=${TUNNEL_URL}|" "$ENV_FILE"
-sed -i "s|^VITE_API_BASE_URL\s*=.*|VITE_API_BASE_URL = ${TUNNEL_URL}/api/v1|" "$FRONTEND_DIR"
-sed -i "s|^TELEGRAM_WEBHOOK_URL=.*|TELEGRAM_WEBHOOK_URL=${TUNNEL_URL}/api/v1/telegram/webhook|" "$ENV_FILE"
-
-echo "Waiting for DNS to propagate..."
-sleep 5
-php artisan optimize:clear 2>/dev/null || true
-php artisan telescope:clear 2>/dev/null || true
-php artisan horizon:terminate 2>/dev/null || true
-php artisan telegram:set-webhook
-
-php artisan horizon &
-PIDS+=($!)
+# Vue frontend
+cd "$FRONTEND_DIR"
+npm run dev >> "$LOG_DIR/frontend.log" 2>&1 &
+cd "$SCRIPT_DIR"
 
 echo ""
 echo "  COMS Dev Environment Ready"
 echo ""
-echo "  App:        http://localhost:8000"
-echo "  Telescope:  http://localhost:8000/telescope"
-echo "  Horizon:    http://localhost:8000/horizon"
-echo "  Webhook:    ${TUNNEL_URL}/api/v1/telegram/webhook"
-echo "  Logs:       ${LOG_DIR}/laravel.log"
+echo "  API (local):        http://localhost:8000"
+echo "  Telescope:          https://api.ecoapsara.com/telescope"
+echo "  Hozizon:            https://api.ecoapsara.com/hozizon"
+echo "  API (tunnel):       https://api.ecoapsara.com"
+echo "  Webhook:            https://api.ecoapsara.com/api/v1/telegram/webhook"
+
+echo "  Frontend (dev):     http://localhost:5173"
+echo "  Frontend (Vercel):  https://communication-onboarding.vercel.app"
+
 echo ""
-echo "  Press Ctrl+C to stop."
+echo "  Logs:"
+echo "    Laravel:          $LOG_DIR/laravel.log"
+echo "    Queue:            $LOG_DIR/worker.log"
+echo "    Tunnel:           $LOG_DIR/cloudflared.log"
+echo "    Frontend:         $LOG_DIR/frontend.log"
+echo ""
+echo "  Press Ctrl+C to stop all."
 echo ""
 
-tail -f "$LOG_DIR/laravel.log" 2>/dev/null || wait
+wait

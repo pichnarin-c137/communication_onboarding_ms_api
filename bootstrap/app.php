@@ -12,6 +12,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Trust Cloudflare proxy headers (tunnel locally, CDN in production)
+        $middleware->prepend(\App\Http\Middleware\TrustProxies::class);
+
         // Register custom middleware aliases
         $middleware->alias([
             'jwt.auth'          => \App\Http\Middleware\JwtAuthenticate::class,
