@@ -80,8 +80,7 @@ echo "  API (tunnel):       https://api.ecoapsara.com"
 echo "  Webhook:            https://api.ecoapsara.com/api/v1/telegram/webhook"
 
 echo "  Frontend (dev):     http://localhost:5173"
-echo "  Frontend (Vercel):  https://communication-onboarding.vercel.app"
-
+echo "  Frontend (tunnel):  https://coms.ecoapsara.com"
 echo ""
 echo "  Logs:"
 echo "    Laravel:          $LOG_DIR/laravel.log"

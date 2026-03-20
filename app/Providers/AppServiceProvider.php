@@ -53,6 +53,17 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(TelegramWebhookService::class, fn ($app) => new TelegramWebhookService(
             $app->make(TelegramGroupService::class),
         ));
+
+        // Broadcasting
+        $this->app->singleton(\Pusher\Pusher::class, function () {
+            $cfg = config('services.pusher');
+            return new \Pusher\Pusher(
+                $cfg['app_key'],
+                $cfg['secret'],
+                $cfg['app_id'],
+                $cfg['options']
+            );
+        });
     }
 
     /**

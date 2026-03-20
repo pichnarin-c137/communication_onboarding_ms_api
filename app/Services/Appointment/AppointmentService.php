@@ -89,10 +89,6 @@ class AppointmentService
     public function create(array $data, string $creatorId): Appointment
     {
         $appointment = DB::transaction(function () use ($data, $creatorId) {
-            if (empty($data['title'])) {
-                $data['title'] = 'Training Appointment';
-            }
-
             $creator = User::findOrFail($creatorId);
             $creatorRole = $creator->role->role ?? null;
 
@@ -193,6 +189,8 @@ class AppointmentService
                 ['type' => 'appointment', 'id' => $appt->id]
             );
         }
+
+        $this->notifyTrainingTelegramQuietly($appt, 'training_on_the_way');
     }
 
     public function startAppointment(Appointment $appt, string $proofMediaId, float $lat, float $lng): void
@@ -230,6 +228,8 @@ class AppointmentService
                 ['type' => 'appointment', 'id' => $appt->id]
             );
         }
+
+        $this->notifyTrainingTelegramQuietly($appt, 'training_started');
     }
 
     public function completeAppointment(
@@ -266,19 +266,15 @@ class AppointmentService
             );
         }
 
-        $fresh = $appt->fresh();
-
         // Telegram hook: notify client group when a training appointment is completed
-        if ($fresh->appointment_type === 'training') {
-            $this->notifyClientTelegramQuietly($fresh, 'training_completed');
+        $this->notifyTrainingTelegramQuietly($appt, 'training_completed');
+
+        if ($appt->appointment_type === 'training' && ! $appt->is_onboarding_triggered && ! $appt->is_continued_session) {
+            $this->onboardingTriggerService->trigger($appt);
         }
 
-        if ($fresh->appointment_type === 'training' && ! $fresh->is_onboarding_triggered && ! $fresh->is_continued_session) {
-            $this->onboardingTriggerService->trigger($fresh);
-        }
-
-        if ($fresh->appointment_type === 'demo') {
-            $this->demoCompletionService->handle($fresh);
+        if ($appt->appointment_type === 'demo') {
+            $this->demoCompletionService->handle($appt);
         }
     }
 
@@ -312,6 +308,8 @@ class AppointmentService
                 ['type' => 'appointment', 'id' => $appt->id]
             );
         }
+
+        $this->notifyTrainingTelegramQuietly($appt, 'training_cancelled');
     }
 
     public function reschedule(Appointment $appt, array $newSchedule): Appointment
@@ -361,6 +359,8 @@ class AppointmentService
             );
         }
 
+        $this->notifyTrainingTelegramQuietly($newAppt, 'training_rescheduled');
+
         return $newAppt;
     }
 
@@ -378,6 +378,13 @@ class AppointmentService
         }
     }
 
+    private function notifyTrainingTelegramQuietly(Appointment $appt, string $messageType): void
+    {
+        if ($appt->appointment_type === 'training') {
+            $this->notifyClientTelegramQuietly($appt, $messageType);
+        }
+    }
+
     /**
      * Send a Telegram notification to the client's connected group.
      * Failures are caught and logged — they must never propagate to break the core operation.
@@ -391,21 +398,19 @@ class AppointmentService
                 return;
             }
 
-            $client  = $appointment->client;
-            $trainer = $appointment->trainer;
+            $clientName  = $appointment->client?->company_name ?? 'Client';
+            $date        = $appointment->scheduled_date->format('d M Y');
+            $time        = $appointment->scheduled_start_time;
+            $trainerName = $appointment->trainer?->name ?? 'Trainer';
 
             $variables = match ($messageType) {
-                'training_scheduled' => [
-                    'client_name'  => $client?->company_name ?? 'Client',
-                    'date'         => $appointment->scheduled_date->format('d M Y'),
-                    'time'         => $appointment->scheduled_start_time,
-                    'trainer_name' => $trainer?->name ?? 'Trainer',
-                ],
-                'training_completed' => [
-                    'client_name' => $client?->company_name ?? 'Client',
-                    'date'        => $appointment->scheduled_date->format('d M Y'),
-                ],
-                default => [],
+                'training_scheduled'  => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'trainer_name' => $trainerName],
+                'training_completed'  => ['client_name' => $clientName, 'date' => $date],
+                'training_started'    => ['client_name' => $clientName, 'date' => $date, 'time' => $time],
+                'training_on_the_way' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'trainer_name' => $trainerName],
+                'training_rescheduled'=> ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'reason' => $appointment->reschedule_reason ?? 'No reason provided'],
+                'training_cancelled'  => ['client_name' => $clientName, 'date' => $date, 'reason' => $appointment->cancellation_reason ?? 'No reason provided'],
+                default               => [],
             };
 
             $this->telegramGroupService->notifyClient($clientId, $messageType, $variables);

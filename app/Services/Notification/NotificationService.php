@@ -2,8 +2,10 @@
 
 namespace App\Services\Notification;
 
+use App\Events\NotificationCreated;
 use App\Models\Notification;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class NotificationService
 {
@@ -13,25 +15,26 @@ class NotificationService
             return;
         }
 
-        $now = now();
-        $rows = array_map(function ($userId) use ($type, $title, $message, $relatedEntity, $now) {
-            return [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
-                'user_id' => $userId,
-                'client_contact_id' => null,
-                'type' => $type,
-                'title' => $title,
-                'message' => $message,
-                'related_entity_type' => $relatedEntity['type'] ?? null,
-                'related_entity_id' => $relatedEntity['id'] ?? null,
-                'is_read' => false,
-                'read_at' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-        }, $userIds);
+        $now  = now();
+        $rows = array_map(fn ($userId) => [
+            'id'                  => (string) Str::uuid(),
+            'user_id'             => $userId,
+            'client_contact_id'   => null,
+            'type'                => $type,
+            'title'               => $title,
+            'message'             => $message,
+            'related_entity_type' => $relatedEntity['type'] ?? null,
+            'related_entity_id'   => $relatedEntity['id'] ?? null,
+            'is_read'             => false,
+            'read_at'             => null,
+            'created_at'          => $now,
+            'updated_at'          => $now,
+        ], $userIds);
 
         Notification::insert($rows);
+
+        $ids = array_column($rows, 'id');
+        Notification::whereIn('id', $ids)->get()->each(fn ($n) => NotificationCreated::dispatch($n));
     }
 
     public function notifyContact(array $contactIds, string $type, string $title, string $message): void

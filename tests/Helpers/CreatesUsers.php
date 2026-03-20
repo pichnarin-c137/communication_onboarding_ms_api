@@ -20,9 +20,10 @@ trait CreatesUsers
             $role = Role::factory()->create(['role' => $roleName]);
         }
 
-        $user = User::factory()->create(array_merge([
-            'role_id' => $role->id,
-        ], $userData));
+        // Strip 'role' from userData — it's used only to resolve role_id, not a DB column
+        $userAttributes = array_merge(['role_id' => $role->id], array_diff_key($userData, ['role' => true]));
+
+        $user = User::factory()->create($userAttributes);
 
         Credential::factory()->create(array_merge([
             'user_id' => $user->id,
