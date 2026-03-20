@@ -81,6 +81,7 @@ class TelegramGroupController extends Controller
                 'language'         => $group->language,
                 'connected_at'     => $group->connected_at?->toDateTimeString(),
                 'disconnected_at'  => $group->disconnected_at?->toDateTimeString(),
+                'reconnected_at'   => $group->reconnected_at?->toDateTimeString(),
                 'recent_messages'  => $group->messages->map(fn ($msg) => [
                     'id'           => $msg->id,
                     'content'      => $msg->message_body,
@@ -109,6 +110,23 @@ class TelegramGroupController extends Controller
                 'id'              => $group->id,
                 'bot_status'      => $group->bot_status,
                 'disconnected_at' => $group->disconnected_at?->toDateTimeString(),
+                'reconnected_at'  => $group->reconnected_at?->toDateTimeString(),
+            ],
+        ]);
+    }
+
+    public function reconnect(string $id): JsonResponse
+    {
+        $group = $this->groupService->reconnectGroup($id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Telegram group reconnected successfully.',
+            'data'    => [
+                'id'              => $group->id,
+                'bot_status'      => $group->bot_status,
+                'disconnected_at' => $group->disconnected_at?->toDateTimeString(),
+                'reconnected_at'  => $group->reconnected_at?->toDateTimeString(),
             ],
         ]);
     }

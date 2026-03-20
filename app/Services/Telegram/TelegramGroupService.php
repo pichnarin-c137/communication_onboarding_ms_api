@@ -59,14 +59,16 @@ class TelegramGroupService
             throw new TelegramSetupException('Token has already been used', 422);
         }
 
-        // Check if this chat_id is already registered (including soft-deleted)
-        $existingGroup = TelegramGroup::withTrashed()
-            ->where('chat_id', $chatId)
-            ->first();
+        // Block re-registration only if an active (non-deleted) group already uses this chat_id
+        $existingGroup = TelegramGroup::where('chat_id', $chatId)->first();
 
         if ($existingGroup) {
             throw new TelegramSetupException('This Telegram group is already connected', 422);
         }
+
+        // Hard-delete any soft-deleted record for this chat_id so the new create doesn't hit
+        // a unique constraint violation on chat_id
+        TelegramGroup::withTrashed()->where('chat_id', $chatId)->forceDelete();
 
         $tokenRecord->update(['used_at' => now()]);
 
@@ -84,7 +86,7 @@ class TelegramGroupService
     // Group management
 
     /**
-     * Manually disconnect a group from COMS.
+     * Manually disconnect and reconnect a group from COMS.
      */
     public function disconnectGroup(string $groupId): TelegramGroup
     {
@@ -93,6 +95,18 @@ class TelegramGroupService
         $group->update([
             'bot_status'       => 'removed',
             'disconnected_at'  => now(),
+        ]);
+
+        return $group->fresh();
+    }
+
+    public function reconnectGroup(string $groupId): TelegramGroup
+    {
+        $group = TelegramGroup::findOrFail($groupId);
+
+        $group->update([
+            'bot_status'       => 'reconnected',
+            'reconnected_at'  => now(),
         ]);
 
         return $group->fresh();
@@ -165,7 +179,7 @@ class TelegramGroupService
     {
         $group = TelegramGroup::findOrFail($groupId);
 
-        if ($group->bot_status !== 'connected') {
+        if (! in_array($group->bot_status, ['connected', 'reconnected'], true)) {
             throw new TelegramSetupException('Bot is not connected to this group', 422);
         }
 

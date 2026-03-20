@@ -46,4 +46,14 @@ return [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
     ],
 
+    'pusher' => [
+        'app_id'  => env('PUSHER_APP_ID'),
+        'app_key' => env('PUSHER_APP_KEY'),
+        'secret'  => env('PUSHER_APP_SECRET'),
+        'options' => [
+            'cluster' => env('PUSHER_APP_CLUSTER', 'ap1'),
+            'useTLS'  => true,
+        ],
+    ],
+
 ];

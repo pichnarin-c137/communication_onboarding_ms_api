@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\BroadcastController;
 use App\Http\Controllers\AppointmentStudentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
@@ -161,6 +162,9 @@ Route::prefix('v1')->group(function () {
             Route::get('/sale', [DashboardController::class, 'saleDashboard'])->name('dashboard.sale');
         });
 
+        // Pusher private channel auth — JWT-aware, no Auth::user() dependency
+        Route::post('/broadcasting/auth', [BroadcastController::class, 'auth']);
+
         // Telegram management (authenticated, sale + admin only)
         Route::middleware(['role:sale,admin'])->prefix('telegram')->group(function () {
             Route::post('/setup-token', [TelegramSetupController::class, 'generateToken'])->name('telegram.setup-token');
@@ -168,6 +172,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/groups', [TelegramGroupController::class, 'index'])->name('telegram.groups.index');
             Route::get('/groups/{id}', [TelegramGroupController::class, 'show'])->name('telegram.groups.show');
             Route::patch('/groups/{id}/disconnect', [TelegramGroupController::class, 'disconnect'])->name('telegram.groups.disconnect');
+            Route::patch('/groups/{id}/reconnect', [TelegramGroupController::class, 'reconnect'])->name('telegram.groups.reconnect');
             Route::patch('/groups/{id}/language', [TelegramGroupController::class, 'updateLanguage'])->name('telegram.groups.language');
             Route::post('/groups/{id}/test-message', [TelegramGroupController::class, 'testMessage'])->name('telegram.groups.test-message');
 

@@ -51,4 +51,11 @@ return [
     'telegram_default_language'     => env('COMS_TELEGRAM_DEFAULT_LANGUAGE', 'en'),
     'telegram_supported_languages'  => ['en', 'km'],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Broadcasting
+    |--------------------------------------------------------------------------
+    */
+    'broadcast_queue' => env('COMS_BROADCAST_QUEUE', 'default'),
+
 ];

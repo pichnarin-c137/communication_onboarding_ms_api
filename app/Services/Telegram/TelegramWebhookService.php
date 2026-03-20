@@ -41,7 +41,8 @@ class TelegramWebhookService
     {
         try {
             $text      = $payload['message']['text'] ?? '';
-            $token     = trim(substr($text, strlen('/setup ')));
+            preg_match('/^\/setup(?:@\w+)?\s+(\S+)/', $text, $matches);
+            $token     = $matches[1] ?? '';
             $chatId    = (string) ($payload['message']['chat']['id'] ?? '');
             $groupName = $payload['message']['chat']['title'] ?? 'Unknown Group';
 
@@ -77,7 +78,8 @@ class TelegramWebhookService
     {
         $messageText = $payload['message']['text'] ?? '';
 
-        if (str_starts_with($messageText, '/setup ')) {
+        // Match /setup TOKEN and /setup@botname TOKEN (Telegram appends @botname in groups)
+        if (preg_match('/^\/setup(?:@\w+)?\s+(\S+)/', $messageText)) {
             return 'setup_command';
         }
 

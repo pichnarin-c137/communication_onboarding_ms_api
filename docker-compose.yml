@@ -1,42 +1,22 @@
 version: '3.8'
 
 services:
-  # postgres:
-  #   image: postgres:16-alpine
-  #   container_name: employee_management_postgres
-  #   ports:
-  #     - "1143:5432"
-  #   environment:
-  #     POSTGRES_DB: employee_db
-  #     POSTGRES_USER: employee_user
-  #     POSTGRES_PASSWORD: employee_secure_pass_2026
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #     - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
-  #   networks:
-  #     - rsa_jwt_network
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U employee_user -d employee_db"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  mysql:
-    image: mysql:8.0
-    container_name: employee_management_mysql
+  postgres:
+    image: postgres:16-alpine
+    container_name: employee_management_postgres
     ports:
-      - "1143:3306"
+      - "1143:5432"
     environment:
-      MYSQL_ROOT_PASSWORD: root_secure_pass_2026
-      MYSQL_DATABASE: employee_db
-      MYSQL_USER: employee_user
-      MYSQL_PASSWORD: employee_secure_pass_2026
+      POSTGRES_DB: employee_db
+      POSTGRES_USER: employee_user
+      POSTGRES_PASSWORD: employee_secure_pass_2026
     volumes:
-      - mysql_data:/var/lib/mysql
-      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - employee_management_network
+      - rsa_jwt_network
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h mysql -u employee_user -pemployee_secure_pass_2026"]
+      test: ["CMD-SHELL", "pg_isready -U employee_user -d employee_db"]
       interval: 10s
       timeout: 5s
       retries: 5

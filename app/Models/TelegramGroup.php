@@ -25,6 +25,7 @@ class TelegramGroup extends Model
         'connected_by',
         'connected_at',
         'disconnected_at',
+        'reconnected_at',
     ];
 
     protected $casts = [
@@ -33,6 +34,7 @@ class TelegramGroup extends Model
         'connected_by'     => 'string',
         'connected_at'     => 'datetime',
         'disconnected_at'  => 'datetime',
+        'reconnected_at'   => 'datetime',
         'language'         => 'string',
     ];
 
@@ -57,7 +59,7 @@ class TelegramGroup extends Model
 
     public function scopeConnected($query)
     {
-        return $query->where('bot_status', 'connected');
+        return $query->whereIn('bot_status', ['connected', 'reconnected']);
     }
 
     public function scopeForClient($query, string $clientId)
