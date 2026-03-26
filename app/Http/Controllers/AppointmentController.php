@@ -24,7 +24,15 @@ class AppointmentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = User::findOrFail($request->get('auth_user_id'));
-        $filters = $request->only(['status', 'appointment_type', 'scheduled_date', 'client_id']);
+        $filters = $request->only(['status', 'appointment_type', 'scheduled_date', 'client_id', 'trainer_id', 'creator_id', 'search']);
+        $authRole = $request->get('auth_role');
+
+        if ($authRole === 'trainer') {
+            $filters['trainer_id'] = $request->get('auth_user_id');
+        } elseif ($authRole === 'sale') {
+            $filters['trainer_id'] = $request->input('trainer_id');
+        }
+
         $perPage = max(1, min(100, (int) $request->input('per_page', 15)));
         $page = max(1, (int) $request->input('page', 1));
 
@@ -40,10 +48,12 @@ class AppointmentController extends Controller
     public function show(string $id): JsonResponse
     {
         $appointment = $this->appointmentService->get($id);
+        $travelEstimates = $this->appointmentService->estimatePendingAppointments($appointment);
 
         return response()->json([
             'success' => true,
             'data' => $appointment,
+            'travel_estimates' => $travelEstimates ?: null,
         ]);
     }
 

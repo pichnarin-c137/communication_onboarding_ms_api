@@ -25,6 +25,7 @@ class User extends Authenticatable
         'gender',
         'nationality',
         'is_suspended',
+        'branch_id',
     ];
 
     protected $hidden = [
@@ -34,6 +35,7 @@ class User extends Authenticatable
     protected $casts = [
         'id' => 'string',
         'role_id' => 'string',
+        'branch_id' => 'string',
         'dob' => 'date',
         'is_suspended' => 'boolean',
     ];
@@ -46,6 +48,11 @@ class User extends Authenticatable
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function credential(): HasOne

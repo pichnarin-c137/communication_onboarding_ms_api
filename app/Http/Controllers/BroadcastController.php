@@ -23,7 +23,22 @@ class BroadcastController extends Controller
         $socketId    = $request->input('socket_id');
         $authUserId  = $request->get('auth_user_id');
 
-        // Only serve private-notifications.{userId} channels
+        // Authorize presence-trainers channel (any authenticated user)
+        if ($channelName === 'presence-trainers') {
+            $authResponse = json_decode(
+                $this->pusher->authorizePresenceChannel(
+                    $channelName,
+                    $socketId,
+                    $authUserId,
+                    ['role' => $request->get('auth_role')]
+                ),
+                true
+            );
+
+            return response()->json($authResponse);
+        }
+
+        // Authorize private-notifications.{userId} channels
         if (! preg_match('/^private-notifications\.(.+)$/', $channelName, $matches)) {
             return response()->json([
                 'success'    => false,

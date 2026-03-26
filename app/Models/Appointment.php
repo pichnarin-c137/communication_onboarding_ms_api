@@ -19,6 +19,7 @@ class Appointment extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
+        'appointment_code',
         'title',
         'appointment_type',
         'location_type',
@@ -49,6 +50,10 @@ class Appointment extends Model
         'cancelled_by_user_id',
         'cancelled_at',
         'reschedule_reason',
+        'reschedule_at',
+        'reschedule_to_date',
+        'reschedule_to_start_time',
+        'reschedule_to_end_time',
         'is_onboarding_triggered',
         'is_continued_session',
         'related_onboarding_id',
@@ -77,6 +82,11 @@ class Appointment extends Model
         'student_count' => 'integer',
         'is_onboarding_triggered' => 'boolean',
         'is_continued_session' => 'boolean',
+        'reschedule_reason' => 'string',
+        'reschedule_at' => 'datetime',
+        'reschedule_to_date' => 'string',
+        'reschedule_to_start_time' => 'string',
+        'reschedule_to_end_time' => 'string',
     ];
 
     public function trainer(): BelongsTo

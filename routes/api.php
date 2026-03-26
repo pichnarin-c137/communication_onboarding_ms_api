@@ -16,6 +16,8 @@ use App\Http\Controllers\OnboardingSystemAnalysisController;
 use App\Http\Controllers\Telegram\TelegramGroupController;
 use App\Http\Controllers\Telegram\TelegramMessageController;
 use App\Http\Controllers\Telegram\TelegramSetupController;
+use App\Http\Controllers\TrainerLiveStatusController;
+use App\Http\Controllers\TrainerTrackingController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
@@ -160,6 +162,29 @@ Route::prefix('v1')->group(function () {
         Route::prefix('dashboard')->group(function () {
             Route::get('/trainer', [DashboardController::class, 'trainerDashboard'])->name('dashboard.trainer');
             Route::get('/sale', [DashboardController::class, 'saleDashboard'])->name('dashboard.sale');
+        });
+
+        // Trainer tracking (trainer only)
+        Route::middleware(['role:trainer'])->group(function () {
+            Route::post('/trainer/location-ping', [TrainerTrackingController::class, 'ping'])
+                ->middleware('throttle:location_ping')
+                ->name('trainer.location-ping');
+            Route::post('/trainer/status', [TrainerTrackingController::class, 'changeStatus'])
+                ->name('trainer.status');
+            Route::post('/trainer/checkin', [TrainerTrackingController::class, 'checkin'])
+                ->name('trainer.checkin');
+        });
+
+        // Live tracking views (sale + admin)
+        Route::middleware(['role:sale,admin'])->group(function () {
+            Route::get('/trainers/live-status', [TrainerLiveStatusController::class, 'liveStatus'])
+                ->name('trainers.live-status');
+            Route::get('/trainers/{id}/today-activity', [TrainerLiveStatusController::class, 'todayActivity'])
+                ->name('trainers.today-activity');
+            Route::get('/trainers/{id}/activity-log', [TrainerLiveStatusController::class, 'activityLog'])
+                ->name('trainers.activity-log');
+            Route::get('/customers/locations', [TrainerLiveStatusController::class, 'customerLocations'])
+                ->name('customers.locations');
         });
 
         // Pusher private channel auth — JWT-aware, no Auth::user() dependency

@@ -22,6 +22,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'role'              => \App\Http\Middleware\RoleMiddleware::class,
             'telegram.webhook'  => \App\Http\Middleware\VerifyTelegramWebhookSecret::class,
         ]);
+
+        // Reject array-body PATCH requests (must patch one resource at a time)
+        $middleware->appendToGroup('api', \App\Http\Middleware\PreventMultiplePatch::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (\Throwable $e, \Illuminate\Http\Request $request) {

@@ -31,6 +31,7 @@ return [
         'lesson_send' => env('COMS_RATE_LESSON_SEND', 30),
         'onboarding_refresh' => env('COMS_RATE_ONBOARDING_REFRESH', 10),
         'api' => env('COMS_RATE_API', 120),
+        'location_ping' => env('COMS_RATE_LOCATION_PING', 10),
     ],
 
     /*
@@ -57,5 +58,29 @@ return [
     |--------------------------------------------------------------------------
     */
     'broadcast_queue' => env('COMS_BROADCAST_QUEUE', 'default'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Trainer Tracking
+    |--------------------------------------------------------------------------
+    */
+    'tracking' => [
+        'ping_interval_seconds' => env('COMS_TRACKING_PING_INTERVAL', 30),
+        'max_accuracy_meters' => env('COMS_TRACKING_MAX_ACCURACY', 100),
+        'geofence_accuracy_meters' => env('COMS_TRACKING_GEOFENCE_ACCURACY', 50),
+        'geofence_radius_meters' => env('COMS_TRACKING_GEOFENCE_RADIUS', 200),
+        'max_speed_kmh' => env('COMS_TRACKING_MAX_SPEED', 200),
+        'max_ping_age_seconds' => env('COMS_TRACKING_MAX_PING_AGE', 60),
+        'eta_recalc_interval_seconds' => env('COMS_TRACKING_ETA_RECALC', 60),
+        'trail_flush_interval_minutes' => env('COMS_TRACKING_TRAIL_FLUSH', 5),
+        'ping_retention_days' => env('COMS_TRACKING_PING_RETENTION', 30),
+        'eta_cache_ttl' => env('COMS_TRACKING_ETA_CACHE_TTL', 120),
+        'status_cache_ttl' => env('COMS_TRACKING_STATUS_TTL', 86400),
+        'anomaly_travel_delay_factor' => env('COMS_ANOMALY_TRAVEL_DELAY', 2.0),
+        'anomaly_session_overtime_factor' => env('COMS_ANOMALY_SESSION_OVERTIME', 1.5),
+        'anomaly_departure_warning_minutes' => env('COMS_ANOMALY_DEPARTURE_WARNING', 30),
+        'osrm_base_url' => env('COMS_OSRM_BASE_URL', 'https://router.project-osrm.org'),
+        'route_estimate_ttl' => env('COMS_TRACKING_ROUTE_ESTIMATE_TTL', 86400), // 24h — branch/client locations are static
+    ],
 
 ];
