@@ -16,6 +16,10 @@ use App\Services\Onboarding\OnboardingTriggerService;
 use App\Services\Telegram\TelegramGroupService;
 use App\Services\Telegram\TelegramMessageTemplate;
 use App\Services\Telegram\TelegramWebhookService;
+use App\Services\Tracking\AnomalyDetectionService;
+use App\Services\Tracking\EtaService;
+use App\Services\Tracking\TrainerStatusService;
+use App\Services\Tracking\TrainerTrackingService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -53,6 +57,12 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(TelegramWebhookService::class, fn ($app) => new TelegramWebhookService(
             $app->make(TelegramGroupService::class),
         ));
+
+        // Tracking layer
+        $this->app->singleton(AnomalyDetectionService::class);
+        $this->app->singleton(TrainerTrackingService::class);
+        $this->app->singleton(TrainerStatusService::class);
+        $this->app->singleton(EtaService::class);
 
         // Broadcasting
         $this->app->singleton(\Pusher\Pusher::class, function () {
@@ -129,6 +139,17 @@ class AppServiceProvider extends ServiceProvider
                     'message' => 'Progress refresh limit reached. Please wait a moment.',
                     'error_code' => 'RATE_LIMIT_EXCEEDED',
                 ], 429)->withHeaders(['Retry-After' => 60]));
+        });
+
+        // Location ping — scoped by authenticated user
+        RateLimiter::for('location_ping', function (Request $request) {
+            return Limit::perMinute(config('coms.rate_limits.location_ping', 10))
+                ->by($request->get('auth_user_id', $request->ip()))
+                ->response(fn () => response()->json([
+                    'success' => false,
+                    'message' => 'Too many location pings. Please slow down.',
+                    'error_code' => 'RATE_LIMIT_EXCEEDED',
+                ], 429)->withHeaders(['Retry-After' => 30]));
         });
 
         // General authenticated API — scoped by user

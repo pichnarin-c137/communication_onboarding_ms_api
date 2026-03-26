@@ -75,7 +75,7 @@ echo "  COMS Dev Environment Ready"
 echo ""
 echo "  API (local):        http://localhost:8000"
 echo "  Telescope:          https://api.ecoapsara.com/telescope"
-echo "  Hozizon:            https://api.ecoapsara.com/hozizon"
+echo "  Hozizon:            https://api.ecoapsara.com/horizon"
 echo "  API (tunnel):       https://api.ecoapsara.com"
 echo "  Webhook:            https://api.ecoapsara.com/api/v1/telegram/webhook"
 

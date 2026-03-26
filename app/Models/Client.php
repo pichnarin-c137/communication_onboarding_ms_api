@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Client extends Model
 {
-    use HasUuids;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
         'code',
@@ -18,11 +19,15 @@ class Client extends Model
         'phone_number',
         'email',
         'headquarter_address',
+        'headquarter_latitude',
+        'headquarter_longitude',
         'social_links',
         'is_active',
         'assigned_sale_id',
         'banner_image_id',
         'logo_image_id',
+        'geofence_radius',
+        'link_address',
     ];
 
     protected $casts = [
@@ -32,6 +37,8 @@ class Client extends Model
         'logo_image_id' => 'string',
         'social_links' => 'array',
         'is_active' => 'boolean',
+        'geofence_radius' => 'integer',
+        'link_address' => 'string',
     ];
 
     public $incrementing = false;
@@ -61,5 +68,30 @@ class Client extends Model
     public function onboardingRequests(): HasMany
     {
         return $this->hasMany(OnboardingRequest::class);
+    }
+
+    public function appointments(): HasMany
+    {
+        return $this->hasMany(Appointment::class);
+    }
+
+    public function telegramGroups(): HasMany
+    {
+        return $this->hasMany(TelegramGroup::class);
+    }
+
+    public function telegramSetupTokens(): HasMany
+    {
+        return $this->hasMany(TelegramSetupToken::class);
+    }
+
+    public function anomalyAlerts(): HasMany
+    {
+        return $this->hasMany(AnomalyAlert::class, 'customer_id');
+    }
+
+    public function activityLogs(): HasMany
+    {
+        return $this->hasMany(TrainerActivityLog::class, 'customer_id');
     }
 }

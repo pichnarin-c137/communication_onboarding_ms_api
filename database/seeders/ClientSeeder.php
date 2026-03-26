@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Client;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class ClientSeeder extends Seeder
 {
@@ -37,6 +38,8 @@ class ClientSeeder extends Seeder
             '+85523456789',
             'contact@alphatech.kh',
             'Street 271, Sangkat Toul Tum Poung, Khan Chamkarmon, Phnom Penh',
+            "11.5415295",
+            "104.8920684",
             ['facebook' => 'https://facebook.com/alphatech', 'linkedin' => 'https://linkedin.com/company/alphatech', 'telegram' => 'https://t.me/alphatech'],
             true,
             DemoUserSeeder::SALE_USER_ID
@@ -50,6 +53,8 @@ class ClientSeeder extends Seeder
             '+85512987654',
             'info@betalogistics.com',
             'National Road 6A, Russei Keo, Phnom Penh',
+            "11.543943",
+            "104.9027925",
             ['facebook' => 'https://facebook.com/betalogistics', 'telegram' => 'https://t.me/betalogistics'],
             true,
             DemoUserSeeder::SALE_USER_ID
@@ -63,6 +68,8 @@ class ClientSeeder extends Seeder
             '+85511223344',
             'contact@gammacorp.com',
             'Street 123, Phnom Penh',
+            "11.5408561",
+            "104.908013",
             ['facebook' => 'https://facebook.com/gammacorp'],
             true,
             DemoUserSeeder::SALE_USER_ID
@@ -76,6 +83,8 @@ class ClientSeeder extends Seeder
             '+85522334455',
             'info@deltainnovations.com',
             'Street 456, Phnom Penh',
+            "11.5349475",
+            "104.9094879",
             ['facebook' => 'https://facebook.com/deltainnovations'],
             true,
             DemoUserSeeder::SALE_USER_ID
@@ -89,6 +98,8 @@ class ClientSeeder extends Seeder
             '+85533445566',
             'contact@epsilonsystems.com',
             'Street 789, Phnom Penh',
+            "11.5349802",
+            "104.9121787",
             ['facebook' => 'https://facebook.com/epsilonsystems'],
             true,
             DemoUserSeeder::SALE_USER_ID
@@ -102,6 +113,8 @@ class ClientSeeder extends Seeder
             '+85544556677',
             'info@zetasolutions.com',
             'Street 101, Phnom Penh',
+            "11.5355859",
+            "104.9246927",
             ['facebook' => 'https://facebook.com/zetasolutions'],
             true,
             DemoUserSeeder::SALE_USER_ID
@@ -115,6 +128,8 @@ class ClientSeeder extends Seeder
             '+85555667788',
             'contact@etatech.com',
             'Street 202, Phnom Penh',
+            "11.5303658",
+            "104.9229574",
             ['facebook' => 'https://facebook.com/etatech'],
             true,
             DemoUserSeeder::SALE_USER_ID
@@ -128,6 +143,8 @@ class ClientSeeder extends Seeder
             '+85566778899',
             'info@thetadynamics.com',
             'Street 303, Phnom Penh',
+            "11.5438039",
+            "104.8299792",
             ['facebook' => 'https://facebook.com/thetadynamics'],
             true,
             DemoUserSeeder::SALE_USER_ID
@@ -141,6 +158,8 @@ class ClientSeeder extends Seeder
             '+85577889900',
             'contact@iotaenterprises.com',
             'Street 404, Phnom Penh',
+            "11.5354093",
+            "104.922258",
             ['facebook' => 'https://facebook.com/iotaenterprises'],
             true,
             DemoUserSeeder::SALE_USER_ID
@@ -154,10 +173,23 @@ class ClientSeeder extends Seeder
             '+85588990011',
             'info@kappaindustries.com',
             'Street 505, Phnom Penh',
+            "11.5342085",
+            "104.9305614",
             ['facebook' => 'https://facebook.com/kappaindustries'],
             true,
             DemoUserSeeder::SALE_USER_ID
         );
+
+        // Populate PostGIS location column from lat/lng
+        DB::statement("
+            UPDATE clients
+            SET location = ST_SetSRID(ST_MakePoint(
+                CAST(headquarter_longitude AS double precision),
+                CAST(headquarter_latitude AS double precision)
+            ), 4326)
+            WHERE headquarter_latitude IS NOT NULL
+              AND headquarter_longitude IS NOT NULL
+        ");
 
         $this->command->info('All 10 clients have been seeded successfully.');
     }
@@ -170,6 +202,8 @@ class ClientSeeder extends Seeder
         string $phone_number,
         string $email,
         string $headquarter_address,
+        string $headquarter_latitude,
+        string $headquarter_longitude,
         array $social_links,
         bool $is_active,
         string $assigned_sale_id
@@ -183,9 +217,12 @@ class ClientSeeder extends Seeder
                 'phone_number' => $phone_number,
                 'email' => $email,
                 'headquarter_address' => $headquarter_address,
+                'headquarter_latitude' => $headquarter_latitude,
+                'headquarter_longitude' => $headquarter_longitude,
                 'social_links' => json_encode($social_links),
                 'is_active' => $is_active,
                 'assigned_sale_id' => $assigned_sale_id,
+                'geofence_radius' => 200,
             ]
         );
     }

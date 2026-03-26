@@ -5,15 +5,22 @@ namespace App\Services\Appointment;
 use App\Exceptions\Business\AppointmentLockedException;
 use App\Exceptions\Business\AppointmentTimeTooEarlyException;
 use App\Exceptions\Business\DemoCreationForbiddenException;
+use App\Exceptions\Business\OneAppointmentAtATimeException;
 use App\Models\Appointment;
+use App\Models\Branch;
+use App\Models\Client;
 use App\Models\User;
 use App\Services\Logging\ActivityLogger;
 use App\Services\Notification\NotificationService;
 use App\Services\Onboarding\OnboardingTriggerService;
 use App\Services\Telegram\TelegramGroupService;
+use App\Services\Tracking\EtaService;
+use App\Services\Tracking\TrainerStatusService;
+use App\Services\Tracking\TrainerTrackingService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 
 class AppointmentService
 {
@@ -25,6 +32,9 @@ class AppointmentService
         private ActivityLogger $activityLogger,
         private NotificationService $notificationService,
         private TelegramGroupService $telegramGroupService,
+        private TrainerStatusService $trainerStatusService,
+        private EtaService $etaService,
+        private TrainerTrackingService $trackingService,
     ) {}
 
     // Read operations (cached)
@@ -41,7 +51,7 @@ class AppointmentService
             if ($role === 'trainer') {
                 $query->where(function ($q) use ($user) {
                     $q->where('trainer_id', $user->id)
-                      ->orWhere('creator_id', $user->id);
+                        ->orWhere('creator_id', $user->id);
                 });
             }
             // sale and admin see all appointments
@@ -51,10 +61,24 @@ class AppointmentService
 
         // Apply in-memory filters on the cached collection
         $filtered = $all
-            ->when(! empty($filters['status']), fn ($c) => $c->where('status', $filters['status']))
-            ->when(! empty($filters['appointment_type']), fn ($c) => $c->where('appointment_type', $filters['appointment_type']))
-            ->when(! empty($filters['scheduled_date']), fn ($c) => $c->where('scheduled_date', $filters['scheduled_date']))
-            ->when(! empty($filters['client_id']), fn ($c) => $c->where('client_id', $filters['client_id']))
+            ->when(! empty($filters['status']), fn($c) => $c->where('status', $filters['status']))
+            ->when(! empty($filters['appointment_type']), fn($c) => $c->where('appointment_type', $filters['appointment_type']))
+            ->when(! empty($filters['scheduled_date']), fn($c) => $c->filter(
+                fn($appt) => $appt->scheduled_date->toDateString() === $filters['scheduled_date']
+            ))
+            ->when(! empty($filters['client_id']), fn($c) => $c->where('client_id', $filters['client_id']))
+            ->when(! empty($filters['trainer_id']), fn($c) => $c->where('trainer_id', $filters['trainer_id']))
+            ->when(! empty($filters['creator_id']), fn($c) => $c->where('creator_id', $filters['creator_id']))
+            ->when(! empty($filters['search']), function ($c) use ($filters) {
+                $search = strtolower($filters['search']);
+                return $c->filter(function ($appt) use ($search) {
+                    return str_contains(strtolower($appt->title), $search)
+                        || str_contains(strtolower($appt->client?->company_name ?? ''), $search)
+                        || str_contains(strtolower($appt->client?->company_code ?? ''), $search)
+                        || str_contains(strtolower($appt->appointment_code ?? ''), $search)
+                        || str_contains(strtolower($appt->trainer?->name ?? ''), $search);
+                });
+            })
             ->values();
 
         $total = $filtered->count();
@@ -96,6 +120,23 @@ class AppointmentService
                 throw new DemoCreationForbiddenException;
             }
 
+            if (empty($data['title'])) {
+                $client = isset($data['client_id']) ? Client::find($data['client_id']) : null;
+                $trainerId = $creatorRole === 'trainer'
+                    ? $creatorId
+                    : ($data['trainer_id'] ?? null);
+                $trainer = $trainerId ? User::find($trainerId) : null;
+                $data['title'] = $client
+                    ? "{$client->company_code} | {$client->company_name} | {$trainer->first_name} {$trainer->last_name}"
+                    : (($data['appointment_type'] ?? 'training') === 'demo' ? 'Demo Session' : 'Training Session');
+            }
+
+            // Trainer creates for themselves — auto-assign and guard against active sessions
+            if (empty($data['trainer_id']) && $creatorRole === 'trainer') {
+                $this->ensureNoActiveAppointment($creatorId);
+                $data['trainer_id'] = $creatorId;
+            }
+
             if (! empty($data['trainer_id'])) {
                 $this->conflictService->checkConflict(
                     $data['trainer_id'],
@@ -108,6 +149,7 @@ class AppointmentService
             $appointment = Appointment::create(array_merge($data, [
                 'creator_id' => $creatorId,
                 'status' => 'pending',
+                'appointment_code' => $this->generateAppointmentCode($data['appointment_type'] ?? 'training'),
             ]));
 
             $this->activityLogger->log(
@@ -121,9 +163,10 @@ class AppointmentService
 
         // Cache invalidation must run after the transaction commits so that
         // any subsequent cache-miss query sees the newly inserted row.
-        $this->invalidateListsFor($creatorId, $data['trainer_id'] ?? null);
+        $this->invalidateListsFor($creatorId, $appointment->trainer_id);
 
-        if (! empty($appointment->trainer_id)) {
+        // Notify trainer only when sale explicitly assigns them — not on self-created appointments
+        if (! empty($appointment->trainer_id) && $appointment->trainer_id !== $creatorId) {
             $this->notifyQuietly(
                 [$appointment->trainer_id],
                 'appointment_assigned',
@@ -159,7 +202,7 @@ class AppointmentService
             );
         }
 
-        $appt->update(array_filter($data, fn ($v) => ! is_null($v)));
+        $appt->update(array_filter($data, fn($v) => ! is_null($v)));
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $oldTrainerId, $data['trainer_id'] ?? null);
 
@@ -170,6 +213,7 @@ class AppointmentService
     {
         $this->statusService->validateTransition($appt, 'leave_office');
         $this->statusService->validateLeaveOffice($appt);
+        $this->ensureNoActiveAppointment($appt->trainer_id, $appt->id);
 
         $appt->update([
             'status' => 'leave_office',
@@ -180,7 +224,16 @@ class AppointmentService
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
 
-        if ($appt->creator_id) {
+        // Sync tracking: trainer is now en_route to the client
+        $this->syncTrackingStatus($appt->trainer_id, 'en_route', [
+            'customer_id' => $appt->client_id,
+            'appointment_id' => $appt->id,
+            'latitude' => $lat,
+            'longitude' => $lng,
+        ]);
+
+        // Notify trainer only when sale explicitly assigns them — not on self-created appointments
+        if (!empty($appt->creator_id) && $appt->creator_id !== $appt->trainer_id) {
             $this->notifyQuietly(
                 [$appt->creator_id],
                 'appointment_leave_office',
@@ -196,12 +249,13 @@ class AppointmentService
     public function startAppointment(Appointment $appt, string $proofMediaId, float $lat, float $lng): void
     {
         $this->statusService->validateTransition($appt, 'in_progress');
+        $this->ensureNoActiveAppointment($appt->trainer_id, $appt->id);
 
         // Only enforce the early-start window for appointments that have NOT gone through
         // leave_office — once a trainer is physically en route, the time restriction is moot.
         if ($appt->status !== 'leave_office') {
             $scheduledStart = \Carbon\Carbon::parse(
-                $appt->scheduled_date->toDateString().' '.$appt->scheduled_start_time
+                $appt->scheduled_date->toDateString() . ' ' . $appt->scheduled_start_time
             );
 
             if (now()->lt($scheduledStart->subMinutes(30))) {
@@ -219,7 +273,15 @@ class AppointmentService
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
 
-        if ($appt->creator_id) {
+        // Sync tracking: trainer started session (skip 'arrived' — it's immediately overwritten)
+        $this->syncTrackingStatus($appt->trainer_id, 'in_session', [
+            'customer_id' => $appt->client_id,
+            'appointment_id' => $appt->id,
+            'latitude' => $lat,
+            'longitude' => $lng,
+        ]);
+
+        if (!empty($appt->creator_id) && $appt->creator_id !== $appt->trainer_id) {
             $this->notifyQuietly(
                 [$appt->creator_id],
                 'appointment_started',
@@ -256,7 +318,16 @@ class AppointmentService
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
 
-        if ($appt->creator_id) {
+        // Sync tracking: trainer completed session
+        $trainerId = $appt->trainer_id ?? $completingUserId;
+        $this->syncTrackingStatus($trainerId, 'completed', [
+            'customer_id' => $appt->client_id,
+            'appointment_id' => $appt->id,
+            'latitude' => $lat,
+            'longitude' => $lng,
+        ]);
+
+        if (!empty($appt->creator_id) && $appt->creator_id !== $appt->trainer_id) {
             $this->notifyQuietly(
                 [$appt->creator_id],
                 'appointment_completed',
@@ -293,11 +364,18 @@ class AppointmentService
             'cancelled_at' => now(),
         ]);
 
+        $wasActive = in_array($appt->getOriginal('status'), ['leave_office', 'in_progress']);
+
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
 
+        // If the appointment was active, reset the trainer's tracking state
+        if ($wasActive) {
+            $this->resetTrainerTracking($appt->trainer_id);
+        }
+
         $notifyIds = array_values(array_filter(array_unique([
-            $appt->creator_id !== $userId ? $appt->creator_id : null,
-            $appt->trainer_id && $appt->trainer_id !== $userId ? $appt->trainer_id : null,
+            !empty($appt->creator_id) && $appt->creator_id !== $userId ? $appt->creator_id : null,
+            !empty($appt->trainer_id) && $appt->trainer_id !== $userId ? $appt->trainer_id : null,
         ])));
         if ($notifyIds) {
             $this->notifyQuietly(
@@ -314,6 +392,8 @@ class AppointmentService
 
     public function reschedule(Appointment $appt, array $newSchedule): Appointment
     {
+        $wasActive = in_array($appt->status, ['leave_office', 'in_progress']);
+
         $newAppt = DB::transaction(function () use ($appt, $newSchedule) {
             $this->statusService->validateTransition($appt, 'rescheduled');
 
@@ -330,13 +410,24 @@ class AppointmentService
             $appt->update([
                 'status' => 'rescheduled',
                 'reschedule_reason' => $newSchedule['reschedule_reason'] ?? null,
+                'reschedule_at' => now(),
+                'reschedule_to_date' => $newSchedule['scheduled_date'],
+                'reschedule_to_start_time' => $newSchedule['scheduled_start_time'],
+                'reschedule_to_end_time' => $newSchedule['scheduled_end_time'],
             ]);
 
             return Appointment::create(array_merge(
                 $appt->only([
-                    'title', 'appointment_type', 'location_type',
-                    'trainer_id', 'client_id', 'creator_id', 'notes', 'meeting_link',
-                    'physical_location', 'is_continued_session',
+                    'title',
+                    'appointment_type',
+                    'location_type',
+                    'trainer_id',
+                    'client_id',
+                    'creator_id',
+                    'notes',
+                    'meeting_link',
+                    'physical_location',
+                    'is_continued_session',
                 ]),
                 [
                     'scheduled_date' => $newSchedule['scheduled_date'],
@@ -349,7 +440,12 @@ class AppointmentService
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
 
-        if (! empty($newAppt->trainer_id)) {
+        // If the appointment was active, reset the trainer's tracking state
+        if ($wasActive) {
+            $this->resetTrainerTracking($appt->trainer_id);
+        }
+
+        if (! empty($newAppt->trainer_id) && $newAppt->trainer_id !== $appt->trainer_id) {
             $this->notifyQuietly(
                 [$newAppt->trainer_id],
                 'appointment_rescheduled',
@@ -364,7 +460,215 @@ class AppointmentService
         return $newAppt;
     }
 
+    public function estimatePendingAppointments(Appointment $appt): array
+    {
+        if (empty($appt->trainer_id)) {
+            return [];
+        }
+
+        $trainer = User::with('branch')->find($appt->trainer_id);
+        if (! $trainer) {
+            return [];
+        }
+
+        $branch = $trainer->branch;
+
+        // Build estimate for the current appointment regardless of status.
+        $current = null;
+        if ($appt->location_type !== 'online') {
+            $appt->loadMissing('client');
+            $current = $this->buildRouteEstimate($appt, $branch);
+        }
+
+        // Gather other pending appointments for this trainer.
+        $pendingAppointments = Appointment::with('client')
+            ->where('trainer_id', $appt->trainer_id)
+            ->where('status', 'pending')
+            ->where('location_type', '!=', 'online')
+            ->where('id', '!=', $appt->id)
+            ->orderBy('scheduled_date')
+            ->orderBy('scheduled_start_time')
+            ->get();
+
+        $otherPending = [];
+        $errors = [];
+
+        foreach ($pendingAppointments as $pending) {
+            $otherPending[] = $this->buildRouteEstimate($pending, $branch);
+        }
+
+        // Separate successful estimates from errors
+        $otherSuccess = [];
+        foreach ($otherPending as $item) {
+            if (isset($item['reason'])) {
+                $errors[] = $item;
+            } else {
+                $otherSuccess[] = $item;
+            }
+        }
+
+        // Handle current appointment errors
+        if ($current !== null && isset($current['reason'])) {
+            $errors[] = $current;
+            $current = null;
+        }
+
+        return [
+            'trainer_position' => $this->getTrainerLivePosition($appt->trainer_id, $trainer),
+            'current' => $current,
+            'other_pending' => $otherSuccess,
+            'errors' => $errors,
+        ];
+    }
+
+    private function getTrainerLivePosition(string $trainerId, User $trainer): array
+    {
+        $pos = Redis::geopos(TrainerTrackingService::KEY_LOCATIONS, $trainerId);
+        $statusJson = Redis::get(TrainerTrackingService::statusKey($trainerId));
+        $status = $statusJson ? json_decode($statusJson, true) : [];
+
+        $hasGps = $pos && $pos[0];
+        $trainerName = trim($trainer->first_name . ' ' . $trainer->last_name);
+        $lat = $hasGps ? (float) $pos[0][1] : null;
+        $lng = $hasGps ? (float) $pos[0][0] : null;
+
+        // Derive status by comparing trainer GPS with their branch HQ
+        $computedStatus = 'offline';
+        $distanceFromBranch = null;
+        $branch = $trainer->branch;
+
+        if ($hasGps && $branch && $branch->headquarters_lat && $branch->headquarters_lng) {
+            $distanceFromBranch = $this->trackingService->haversineDistance(
+                $lat,
+                $lng,
+                (float) $branch->headquarters_lat,
+                (float) $branch->headquarters_lng
+            );
+
+            // Within 200m of branch HQ → at_office, otherwise → traveling
+            $geofenceRadius = config('coms.tracking.geofence_radius_meters', 200);
+            $computedStatus = $distanceFromBranch <= $geofenceRadius ? 'at_office' : 'traveling';
+        } elseif ($hasGps) {
+            $computedStatus = 'active'; // GPS available but no branch to compare
+        }
+
+        return [
+            'name' => $trainerName,
+            'active' => $hasGps,
+            'lat' => $lat,
+            'lng' => $lng,
+            'status' => $computedStatus,
+            'distance_from_branch_m' => $distanceFromBranch ? round($distanceFromBranch) : null,
+            'branch_name' => $branch->name ?? null,
+            'branch_lat' => $branch ? (float) $branch->headquarters_lat : null,
+            'branch_lng' => $branch ? (float) $branch->headquarters_lng : null,
+            'updated_at' => $status['updated_at'] ?? null,
+        ];
+    }
+
+    private function buildRouteEstimate(Appointment $appt, ?Branch $branch): array
+    {
+        $client = $appt->client;
+        $clientName = $client?->company_name ?? 'Unknown Client';
+
+        $base = [
+            'appointment_id' => $appt->id,
+            'client_name' => $clientName,
+            'scheduled_date' => $appt->scheduled_date->toDateString(),
+            'scheduled_start_time' => $appt->scheduled_start_time,
+        ];
+
+        // Validate branch location
+        if (! $branch || empty($branch->headquarters_lat) || empty($branch->headquarters_lng)) {
+            return array_merge($base, ['reason' => 'missing_branch_location']);
+        }
+
+        // Validate client location
+        if (! $client || empty($client->headquarter_latitude) || empty($client->headquarter_longitude)) {
+            return array_merge($base, ['reason' => 'missing_client_location']);
+        }
+
+        $fromLat = (float) $branch->headquarters_lat;
+        $fromLng = (float) $branch->headquarters_lng;
+        $toLat = (float) $client->headquarter_latitude;
+        $toLng = (float) $client->headquarter_longitude;
+
+        $origin = ['lat' => $fromLat, 'lng' => $fromLng, 'label' => $branch->name];
+        $destination = ['lat' => $toLat, 'lng' => $toLng, 'label' => $clientName];
+
+        // Try cached OSRM route first (keyed by branch:client pair — static locations)
+        $cacheKey = "route_estimate:{$branch->id}:{$client->id}";
+        $ttl = config('coms.tracking.route_estimate_ttl', 86400);
+
+        $cached = Cache::store('redis')->get($cacheKey);
+        if ($cached) {
+            return array_merge($base, $cached, [
+                'origin' => $origin,
+                'destination' => $destination,
+                'cached' => true,
+            ]);
+        }
+
+        // Call OSRM via EtaService
+        $osrmResult = $this->etaService->calculateEta(
+            "route_estimate_{$branch->id}_{$client->id}",
+            $fromLat,
+            $fromLng,
+            $toLat,
+            $toLng
+        );
+
+        if ($osrmResult) {
+            $routeData = [
+                'eta_minutes' => $osrmResult['eta_minutes'],
+                'distance_meters' => $osrmResult['distance_meters'],
+                'route_geometry' => $osrmResult['route_geometry'],
+                'source' => 'osrm',
+            ];
+
+            Cache::store('redis')->put($cacheKey, $routeData, $ttl);
+
+            return array_merge($base, $routeData, [
+                'origin' => $origin,
+                'destination' => $destination,
+                'cached' => false,
+            ]);
+        }
+
+        // Haversine fallback
+        $distanceMeters = $this->trackingService->haversineDistance($fromLat, $fromLng, $toLat, $toLng);
+        $averageSpeedKmh = 40;
+        $etaMinutes = round(($distanceMeters / 1000) / $averageSpeedKmh * 60, 1);
+
+        return array_merge($base, [
+            'eta_minutes' => $etaMinutes,
+            'distance_meters' => (int) $distanceMeters,
+            'route_geometry' => null,
+            'source' => 'haversine',
+            'origin' => $origin,
+            'destination' => $destination,
+            'cached' => false,
+        ]);
+    }
+
     // Helpers
+
+    private function generateAppointmentCode(string $type): string
+    {
+        $prefix = $type === 'demo' ? 'DEMO' : 'TRN';
+        $date   = now()->format('Ymd');
+
+        for ($i = 0; $i < 10; $i++) {
+            $random = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 5));
+            $code   = "{$prefix}-{$date}-{$random}";
+
+            if (! Appointment::where('appointment_code', $code)->exists()) {
+                return $code;
+            }
+        }
+
+        throw new \RuntimeException('Failed to generate unique appointment code after 10 attempts.');
+    }
 
     private function notifyQuietly(array $userIds, string $type, string $title, string $body, array $meta): void
     {
@@ -408,7 +712,7 @@ class AppointmentService
                 'training_completed'  => ['client_name' => $clientName, 'date' => $date],
                 'training_started'    => ['client_name' => $clientName, 'date' => $date, 'time' => $time],
                 'training_on_the_way' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'trainer_name' => $trainerName],
-                'training_rescheduled'=> ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'reason' => $appointment->reschedule_reason ?? 'No reason provided'],
+                'training_rescheduled' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'reason' => $appointment->reschedule_reason ?? 'No reason provided'],
                 'training_cancelled'  => ['client_name' => $clientName, 'date' => $date, 'reason' => $appointment->cancellation_reason ?? 'No reason provided'],
                 default               => [],
             };
@@ -419,6 +723,84 @@ class AppointmentService
                 'appointment_id' => $appointment->id,
                 'message_type'   => $messageType,
                 'error'          => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Ensure the trainer has no other active appointment (leave_office or in_progress).
+     * A trainer must finish their current appointment before starting another.
+     * Skipped when sale creates an appointment (trainer_id may not be set yet).
+     */
+    private function ensureNoActiveAppointment(?string $trainerId, ?string $excludeAppointmentId = null): void
+    {
+        if (! $trainerId) {
+            return;
+        }
+
+        $active = Appointment::where('trainer_id', $trainerId)
+            ->when($excludeAppointmentId, fn($q) => $q->where('id', '!=', $excludeAppointmentId))
+            ->whereIn('status', ['leave_office', 'in_progress'])
+            ->first();
+
+        if ($active) {
+            throw new OneAppointmentAtATimeException(
+                "Finish the current appointment '{$active->title}' before starting a new one.",
+                context: [
+                    'trainer_id' => $trainerId,
+                    'active_appointment_id' => $active->id,
+                    'active_appointment_status' => $active->status,
+                ]
+            );
+        }
+    }
+
+    /**
+     * Sync tracking status when appointment actions occur.
+     * Failures are caught and logged — tracking must never break appointment operations.
+     */
+    private function syncTrackingStatus(?string $trainerId, string $trackingStatus, array $data): void
+    {
+        if (! $trainerId) {
+            return;
+        }
+
+        try {
+            $currentStatus = $this->trainerStatusService->getCurrentStatus($trainerId);
+            if ($currentStatus === $trackingStatus) {
+                return;
+            }
+
+            $this->trainerStatusService->changeStatus($trainerId, $trackingStatus, $data);
+        } catch (\Throwable $e) {
+            Log::warning('Tracking status sync failed', [
+                'trainer_id' => $trainerId,
+                'tracking_status' => $trackingStatus,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Reset a trainer's tracking state back to at_office.
+     * Used when an active appointment is cancelled or rescheduled.
+     */
+    private function resetTrainerTracking(?string $trainerId): void
+    {
+        if (! $trainerId) {
+            return;
+        }
+
+        try {
+            $this->trainerStatusService->resetToAtOffice($trainerId);
+
+            Log::info('Trainer tracking reset to at_office (appointment cancelled/rescheduled)', [
+                'trainer_id' => $trainerId,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Trainer tracking reset failed', [
+                'trainer_id' => $trainerId,
+                'error' => $e->getMessage(),
             ]);
         }
     }

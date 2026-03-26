@@ -322,13 +322,14 @@ class UserService
     public function listClients(array $filters = []): array
     {
         $query = Client::query()
-            ->select('id', 'company_name', 'company_code', 'phone_number');
+            ->select('id', 'company_name', 'company_code', 'phone_number', 'link_address');
 
         if (! empty($filters['search'])) {
             $search = $filters['search'];
             $query->where('company_name', 'like', '%'.$search.'%');
             $query->orWhere('company_code', 'like', '%'.$search.'%');
             $query->orWhere('phone_number', 'like', '%'.$search.'%');
+            $query->orWhere('link_address', 'like', '%'.$search.'%');
         }
 
         $sortBy = $filters['sort_by'] ?? 'company_name';
