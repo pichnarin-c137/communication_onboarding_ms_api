@@ -15,7 +15,7 @@ return new class extends Migration
             $table->uuid('client_id');
             $table->uuid('system_id');
             $table->uuid('trainer_id');
-            $table->enum('status', ['in_progress', 'completed', 'cancelled'])->default('in_progress');
+            $table->enum('status', ['pending', 'in_progress', 'completed', 'cancelled'])->default('pending');
             $table->decimal('progress_percentage', 5, 2)->default(0);
             $table->dateTime('completed_at')->nullable();
             $table->timestamps();

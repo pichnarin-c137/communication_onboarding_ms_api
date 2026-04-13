@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Mail;
 
 class OtpService
 {
+    private const DEV_OTP = '111111';
+
     private int $otpLength;
 
     private int $otpExpiryMin;
@@ -20,7 +22,7 @@ class OtpService
 
     public function __construct()
     {
-        $this->otpLength = config('otp.length', 4);
+        $this->otpLength = config('otp.length', 6);
         $this->otpExpiryMin = config('otp.expiry_min', 5);
         $this->otpExpiryMax = config('otp.expiry_max', 10);
     }
@@ -30,6 +32,10 @@ class OtpService
      */
     public function generateOtp(): string
     {
+        if (config('app.env') === 'local') {
+            return self::DEV_OTP;
+        }
+
         $min = pow(10, $this->otpLength - 1);
         $max = pow(10, $this->otpLength) - 1;
 
@@ -51,6 +57,11 @@ class OtpService
                 'otp' => $otp,
                 'otp_expiry' => Carbon::now()->addMinutes($expiryMinutes),
             ]);
+
+            // Skip sending email in local environment to speed up testing
+            if (config('app.env') === 'local') {
+                return;
+            }
 
             // Attempt to send email
             Mail::to($credential->email)->send(new OtpMail($otp, $expiryMinutes));
@@ -77,6 +88,12 @@ class OtpService
      */
     public function verifyOtp(Credential $credential, string $otp): bool
     {
+        // Allow fixed OTP in local environment
+        if (config('app.env') === 'local' && $otp === self::DEV_OTP) {
+            $credential->clearOtp();
+            return true;
+        }
+
         if (! $credential->hasValidOtp($otp)) {
             return false;
         }

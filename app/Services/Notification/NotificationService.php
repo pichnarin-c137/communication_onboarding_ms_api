@@ -4,14 +4,28 @@ namespace App\Services\Notification;
 
 use App\Events\NotificationCreated;
 use App\Models\Notification;
+use App\Services\UserSettingsService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class NotificationService
 {
+    public function __construct(
+        private UserSettingsService $userSettingsService
+    ) {}
+
     public function notify(array $userIds, string $type, string $title, string $message, ?array $relatedEntity = null): void
     {
         if (empty($userIds)) {
+            return;
+        }
+
+        // Filter out users who have disabled in-app notifications or are in quiet hours
+        $eligibleUserIds = array_values(array_filter($userIds, function (string $userId) {
+            return $this->userSettingsService->shouldDeliver($userId, 'in_app');
+        }));
+
+        if (empty($eligibleUserIds)) {
             return;
         }
 
@@ -29,7 +43,7 @@ class NotificationService
             'read_at'             => null,
             'created_at'          => $now,
             'updated_at'          => $now,
-        ], $userIds);
+        ], $eligibleUserIds);
 
         Notification::insert($rows);
 

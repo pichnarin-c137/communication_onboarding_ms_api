@@ -26,14 +26,22 @@ class AuthController extends Controller
     public function register(RegisterRequest $request): JsonResponse
     {
         $userData = $request->only([
-            'first_name', 'last_name', 'dob', 'address', 'gender', 'nationality',
+            'first_name',
+            'last_name',
+            'dob',
+            'address',
+            'gender',
+            'nationality',
         ]);
 
         // Public registration always creates regular users
         $userData['role'] = 'user';
 
         $credentialData = $request->only([
-            'email', 'username', 'phone_number', 'password',
+            'email',
+            'username',
+            'phone_number',
+            'password',
         ]);
 
         $user = $this->userService->createUser($userData, $credentialData);
@@ -55,7 +63,8 @@ class AuthController extends Controller
     {
         $credential = $this->authService->initiateLogin(
             $request->identifier,
-            $request->password
+            $request->password,
+            $request->boolean('remember_me')
         );
 
         return response()->json([
@@ -75,11 +84,14 @@ class AuthController extends Controller
     {
         $tokens = $this->authService->verifyOtpAndIssueTokens(
             $request->identifier,
-            $request->otp
+            $request->otp,
+            $request->has('remember_me') ? $request->boolean('remember_me') : null
         );
 
         $refreshToken = $tokens['refresh_token'];
+        $refreshTokenExpiryMinutes = $tokens['refresh_expires_in'] / 60;
         unset($tokens['refresh_token']);
+        unset($tokens['refresh_expires_in']);
 
         $isSecure = str_starts_with(config('app.url', ''), 'https');
 
@@ -90,7 +102,7 @@ class AuthController extends Controller
         ])->cookie(
             'refresh_token',
             $refreshToken,
-            config('jwt.refresh_token_expiry', 43200),
+            $refreshTokenExpiryMinutes,
             '/api/v1/auth',
             null,
             $isSecure,

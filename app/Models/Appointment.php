@@ -35,8 +35,8 @@ class Appointment extends Model
         'scheduled_end_time',
         'actual_start_time',
         'actual_end_time',
-        'start_proof_media_id',
-        'end_proof_media_id',
+        'start_proof_media',
+        'end_proof_media',
         'start_lat',
         'start_lng',
         'end_lat',
@@ -64,8 +64,8 @@ class Appointment extends Model
         'trainer_id' => 'string',
         'client_id' => 'string',
         'creator_id' => 'string',
-        'start_proof_media_id' => 'string',
-        'end_proof_media_id' => 'string',
+        'start_proof_media' => 'string',
+        'end_proof_media' => 'string',
         'cancelled_by_user_id' => 'string',
         'related_onboarding_id' => 'string',
         'scheduled_date' => 'date',
@@ -121,12 +121,12 @@ class Appointment extends Model
 
     public function startProof(): BelongsTo
     {
-        return $this->belongsTo(Media::class, 'start_proof_media_id');
+        return $this->belongsTo(Media::class, 'start_proof_media');
     }
 
     public function endProof(): BelongsTo
     {
-        return $this->belongsTo(Media::class, 'end_proof_media_id');
+        return $this->belongsTo(Media::class, 'end_proof_media');
     }
 
     public function cancelledBy(): BelongsTo

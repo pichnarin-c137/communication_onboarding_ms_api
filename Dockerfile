@@ -1,68 +1,58 @@
-FROM php:8.4-cli
+#  BASE STAGE 
+FROM php:8.4-fpm-alpine AS base
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libonig-dev \
-    libxml2-dev \
-    zip \
-    unzip \
-    openssl \
-    autoconf \
-    build-essential
-
-# Install PHP extensions
-# RUN docker-php-ext-install pdo pdo_pgsql mbstring
-RUN docker-php-ext-install pdo pdo_mysql mbstring
-
-# Install Xdebug via pecl and enable it
-RUN pecl install xdebug \
-    && docker-php-ext-enable xdebug
-
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-# Set working directory
 WORKDIR /var/www/html
 
-# Copy application files
+# System dependencies
+RUN apk add --no-cache \
+    git curl zip unzip bash \
+    libpq-dev oniguruma-dev libxml2-dev \
+    linux-headers
+
+# PHP extensions
+RUN docker-php-ext-install \
+    pdo pdo_pgsql pgsql \
+    mbstring xml bcmath pcntl
+
+# Redis extension
+RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && apk del .build-deps
+
+# Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+#  DEVELOPMENT STAGE 
+# Includes Xdebug and copies code for local development
+FROM base AS development
+RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
+    && pecl install xdebug \
+    && docker-php-ext-enable xdebug \
+    && apk del .build-deps
+
+# No-op copy (code is usually mounted via volumes in dev)
 COPY . .
 
-# Copy Xdebug ini (if exists)
-RUN if [ -f docker/php/conf.d/xdebug.ini ]; then \
-        cp docker/php/conf.d/xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini; \
-    fi
+#  PRODUCTION STAGE 
+# Optimized for size and security
+FROM base AS production
 
-# Install dependencies
-RUN composer install --optimize-autoloader
+# Set production environment
+ENV APP_ENV=production
+ENV APP_DEBUG=false
 
-# Create keys directory and set permissions
-RUN mkdir -p storage/keys && chmod -R 775 storage bootstrap/cache
+# Copy application source code
+COPY . .
 
-# Create startup script
-RUN echo '#!/bin/bash\n\
-set -e\n\
-PORT=${PORT:-8000}\n\
-# Set umask for new files\n\
-umask 0002\n\
-# Fix storage & bootstrap/cache ownership and permissions\n\
-echo "Fixing storage ownership and permissions..."\n\
-chown -R www-data:www-data storage bootstrap/cache\n\
-find storage -type d -exec chmod 775 {} \;\n\
-find storage -type f -exec chmod 664 {} \;\n\
-chmod -R 775 bootstrap/cache\n\
-# Ensure storage link exists\n\
-php artisan storage:link 2>/dev/null || true\n\
-echo "Running migrations..."\n\
-php artisan migrate --force\n\
-echo "Seeding database..."\n\
-php artisan db:seed --force\n\
-echo "Generating JWT keys..."\n\
-php artisan jwt:generate-keys\n\
-echo "Starting server on port $PORT..."\n\
-php artisan serve --host=0.0.0.0 --port=$PORT\n' > /usr/local/bin/start.sh && chmod +x /usr/local/bin/start.sh
+# Install production dependencies
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
 
-EXPOSE 8000
+# Permissions cleanup
+RUN mkdir -p storage/keys \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
-CMD ["/usr/local/bin/start.sh"]
+# Final setup
+EXPOSE 9000
+CMD ["php-fpm"]

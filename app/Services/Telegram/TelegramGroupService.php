@@ -15,6 +15,7 @@ class TelegramGroupService
     public function __construct(
         private TelegramService $telegramService,
         private TelegramMessageTemplate $template,
+        private \App\Services\UserSettingsService $userSettingsService,
     ) {}
 
     // Token management
@@ -206,9 +207,13 @@ class TelegramGroupService
      * If no connected group exists, silently returns.
      * Failures are caught and logged — they must never propagate.
      */
-    public function notifyClient(string $clientId, string $messageType, array $variables = []): void
+    public function notifyClient(string $clientId, string $messageType, array $variables = [], ?string $actingUserId = null): void
     {
         try {
+            if ($actingUserId && ! $this->userSettingsService->shouldDeliver($actingUserId, 'telegram')) {
+                return;
+            }
+
             $group = $this->findConnectedGroupForClient($clientId);
 
             if (! $group) {

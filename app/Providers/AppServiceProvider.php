@@ -16,10 +16,17 @@ use App\Services\Onboarding\OnboardingTriggerService;
 use App\Services\Telegram\TelegramGroupService;
 use App\Services\Telegram\TelegramMessageTemplate;
 use App\Services\Telegram\TelegramWebhookService;
+use App\Services\Business\BusinessTypeService;
+use App\Services\Business\CompanyService;
+use App\Services\Business\DocumentExtractionService;
+use App\Services\Playlist\PlaylistService;
+use App\Services\Playlist\PlaylistTelegramService;
+use App\Services\Playlist\PlaylistVideoService;
 use App\Services\Tracking\AnomalyDetectionService;
 use App\Services\Tracking\EtaService;
 use App\Services\Tracking\TrainerStatusService;
 use App\Services\Tracking\TrainerTrackingService;
+use App\Services\UserSettingsService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -33,6 +40,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(ActivityLogger::class);
+        $this->app->singleton(UserSettingsService::class);
         $this->app->singleton(NotificationService::class);
         $this->app->singleton(TelegramService::class);
 
@@ -52,17 +60,28 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(TelegramGroupService::class, fn ($app) => new TelegramGroupService(
             $app->make(TelegramService::class),
             $app->make(TelegramMessageTemplate::class),
+            $app->make(UserSettingsService::class),
         ));
 
         $this->app->singleton(TelegramWebhookService::class, fn ($app) => new TelegramWebhookService(
             $app->make(TelegramGroupService::class),
         ));
 
+        // Playlist layer
+        $this->app->singleton(PlaylistService::class);
+        $this->app->singleton(PlaylistVideoService::class);
+        $this->app->singleton(PlaylistTelegramService::class);
+
         // Tracking layer
         $this->app->singleton(AnomalyDetectionService::class);
         $this->app->singleton(TrainerTrackingService::class);
         $this->app->singleton(TrainerStatusService::class);
         $this->app->singleton(EtaService::class);
+
+        // Business Management layer
+        $this->app->singleton(BusinessTypeService::class);
+        $this->app->singleton(CompanyService::class);
+        $this->app->singleton(DocumentExtractionService::class);
 
         // Broadcasting
         $this->app->singleton(\Pusher\Pusher::class, function () {
@@ -150,6 +169,17 @@ class AppServiceProvider extends ServiceProvider
                     'message' => 'Too many location pings. Please slow down.',
                     'error_code' => 'RATE_LIMIT_EXCEEDED',
                 ], 429)->withHeaders(['Retry-After' => 30]));
+        });
+
+        // Document extraction — scoped by authenticated user
+        RateLimiter::for('document_extract', function (Request $request) {
+            return Limit::perMinute(config('coms.document_extract_rate_limit', 10))
+                ->by($request->get('auth_user_id', $request->ip()))
+                ->response(fn () => response()->json([
+                    'success'    => false,
+                    'message'    => 'Too many document extraction requests. Please wait.',
+                    'error_code' => 'RATE_LIMIT_EXCEEDED',
+                ], 429)->withHeaders(['Retry-After' => 60]));
         });
 
         // General authenticated API — scoped by user

@@ -29,7 +29,7 @@ class TrainerTrackingTest extends TestCase
         Redis::del(TrainerTrackingService::etaKey($this->trainer->id));
     }
 
-    // ── Location Ping Validation ──
+    //  Location Ping Validation 
 
     public function test_it_accepts_valid_ping(): void
     {
@@ -126,7 +126,7 @@ class TrainerTrackingTest extends TestCase
         $this->assertCount(1, $trail);
     }
 
-    // ── Status Transitions ──
+    //  Status Transitions 
 
     public function test_it_transitions_at_office_to_en_route(): void
     {
@@ -250,7 +250,7 @@ class TrainerTrackingTest extends TestCase
         ]);
     }
 
-    // ── Geofence Auto-Arrival ──
+    //  Geofence Auto-Arrival 
 
     public function test_it_auto_arrives_when_within_geofence_with_good_accuracy(): void
     {

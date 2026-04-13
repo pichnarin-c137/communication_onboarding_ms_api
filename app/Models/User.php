@@ -122,6 +122,11 @@ class User extends Authenticatable
         return $this->hasMany(Comment::class);
     }
 
+    public function settings(): HasOne
+    {
+        return $this->hasOne(UserSetting::class);
+    }
+
     // Helper methods
     public function isAdmin(): bool
     {

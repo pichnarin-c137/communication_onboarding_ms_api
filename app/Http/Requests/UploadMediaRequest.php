@@ -16,7 +16,8 @@ class UploadMediaRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'file' => ['required', 'image', 'mimes:jpeg,png,webp', 'max:10240'],
+            'file' => ['required_without:base64', 'image', 'mimes:jpeg,png,webp', 'max:10240'],
+            'base64' => ['required_without:file', 'string'],
             'category' => ['nullable', 'in:profile,logo,banner,document,other'],
         ];
     }

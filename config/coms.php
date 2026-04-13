@@ -54,6 +54,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Playlist Management
+    |--------------------------------------------------------------------------
+    */
+    'playlist_list_ttl'   => env('COMS_PLAYLIST_LIST_TTL', 300),
+    'telegram_send_queue' => env('COMS_TELEGRAM_SEND_QUEUE', 'high'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Broadcasting
     |--------------------------------------------------------------------------
     */
@@ -81,6 +89,45 @@ return [
         'anomaly_departure_warning_minutes' => env('COMS_ANOMALY_DEPARTURE_WARNING', 30),
         'osrm_base_url' => env('COMS_OSRM_BASE_URL', 'https://router.project-osrm.org'),
         'route_estimate_ttl' => env('COMS_TRACKING_ROUTE_ESTIMATE_TTL', 86400), // 24h — branch/client locations are static
+        'haversine_fallback_speed_kmh' => env('COMS_HAVERSINE_FALLBACK_SPEED_KMH', 40),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Business Management
+    |--------------------------------------------------------------------------
+    */
+    'business' => [
+        'business_type_list_ttl' => env('COMS_BUSINESS_TYPE_LIST_TTL', 600),   // 10 min
+        'business_type_show_ttl' => env('COMS_BUSINESS_TYPE_SHOW_TTL', 1800),  // 30 min
+        'company_list_ttl'       => env('COMS_COMPANY_LIST_TTL', 300),         // 5 min
+        'company_show_ttl'       => env('COMS_COMPANY_SHOW_TTL', 600),         // 10 min
+    ],
+
+    'document_extract_rate_limit' => env('COMS_DOCUMENT_EXTRACT_RATE_LIMIT', 10),
+
+    /*
+    |--------------------------------------------------------------------------
+    | User Settings
+    |--------------------------------------------------------------------------
+    */
+    'user_settings' => [
+        'cache_ttl' => env('COMS_USER_SETTINGS_CACHE_TTL', 600),
+        'defaults' => [
+            'in_app_notifications'  => true,
+            'telegram_notifications' => true,
+            'language'              => 'en',
+            'timezone'              => 'Asia/Phnom_Penh',
+            'items_per_page'        => 15,
+            'theme'                 => 'light',
+            'quiet_hours_enabled'   => false,
+            'quiet_hours_start'     => '22:00',
+            'quiet_hours_end'       => '07:00',
+        ],
+        'supported_languages' => ['en', 'km'],
+        'supported_themes'    => ['light', 'dark'],
+        'items_per_page_min'  => 5,
+        'items_per_page_max'  => 100,
     ],
 
 ];

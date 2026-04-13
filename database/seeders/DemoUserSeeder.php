@@ -33,7 +33,7 @@ class DemoUserSeeder extends Seeder
         $saleRole = Role::where('role', 'sale')->firstOrFail();
         $trainerRole = Role::where('role', 'trainer')->firstOrFail();
 
-        // --- Sale user ---
+        //  Sale user 
         $sale = User::updateOrCreate(
             ['id' => self::SALE_USER_ID],
             [
@@ -57,7 +57,7 @@ class DemoUserSeeder extends Seeder
             ]);
         }
 
-        // --- Tleang Hour trainer ---
+        //  Tleang Hour trainer 
         $trainer = User::updateOrCreate(
             ['id' => self::TRAINER_USER_ID],
             [

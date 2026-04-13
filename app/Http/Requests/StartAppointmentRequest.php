@@ -16,7 +16,11 @@ class StartAppointmentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'start_proof_media_id' => ['required', 'uuid', 'exists:media,id'],
+            'start_proof_media' => [
+                'required', 
+                'string', 
+                'regex:/^data:image\/(jpeg|png|webp);base64,/'
+            ], 
             'start_latitude' => ['required', 'numeric', 'between:-90,90'],
             'start_longitude' => ['required', 'numeric', 'between:-180,180'],
         ];

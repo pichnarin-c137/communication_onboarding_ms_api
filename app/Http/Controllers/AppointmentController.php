@@ -12,18 +12,22 @@ use App\Http\Requests\UpdateAppointmentRequest;
 use App\Models\Appointment;
 use App\Models\User;
 use App\Services\Appointment\AppointmentService;
+use App\Services\UserSettingsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AppointmentController extends Controller
 {
     public function __construct(
-        private AppointmentService $appointmentService
+        private AppointmentService $appointmentService,
+        private UserSettingsService $userSettingsService
     ) {}
 
     public function index(Request $request): JsonResponse
     {
         $user = User::findOrFail($request->get('auth_user_id'));
+        $userSettings = $this->userSettingsService->getSettings($user->id);
+        
         $filters = $request->only(['status', 'appointment_type', 'scheduled_date', 'client_id', 'trainer_id', 'creator_id', 'search']);
         $authRole = $request->get('auth_role');
 
@@ -33,7 +37,7 @@ class AppointmentController extends Controller
             $filters['trainer_id'] = $request->input('trainer_id');
         }
 
-        $perPage = max(1, min(100, (int) $request->input('per_page', 15)));
+        $perPage = max(1, min(100, (int) $request->input('per_page', $userSettings->items_per_page)));
         $page = max(1, (int) $request->input('page', 1));
 
         $result = $this->appointmentService->list($user, $filters, $perPage, $page);
@@ -106,7 +110,7 @@ class AppointmentController extends Controller
 
         $this->appointmentService->startAppointment(
             $appointment,
-            $request->input('start_proof_media_id'),
+            $request->input('start_proof_media'),
             (float) $request->input('start_latitude'),
             (float) $request->input('start_longitude')
         );
@@ -124,7 +128,7 @@ class AppointmentController extends Controller
 
         $this->appointmentService->completeAppointment(
             $appointment,
-            $request->input('end_proof_media_id'),
+            $request->input('end_proof_media'),
             (float) $request->input('end_latitude'),
             (float) $request->input('end_longitude'),
             (int) $request->input('student_count'),

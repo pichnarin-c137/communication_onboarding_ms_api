@@ -16,7 +16,11 @@ class CompleteAppointmentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'end_proof_media_id' => ['required', 'uuid', 'exists:media,id'],
+            'end_proof_media' => [
+                'required', 
+                'string', 
+                'regex:/^data:image\/(jpeg|png|webp);base64,/'
+            ], 
             'end_latitude' => ['required', 'numeric', 'between:-90,90'],
             'end_longitude' => ['required', 'numeric', 'between:-180,180'],
             'student_count' => ['required', 'integer', 'min:0'],

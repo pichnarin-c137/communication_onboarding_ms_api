@@ -40,18 +40,21 @@ class JwtService
                 throw new JwtKeyNotFoundException("JWT public key not found at: {$publicKeyPath}");
             }
 
-            // Read key files
-            $this->privateKey = file_get_contents($privateKeyPath);
-            $this->publicKey = file_get_contents($publicKeyPath);
+            // Read key files (file_get_contents returns string|false; assign via local vars
+            // to avoid TypeError on typed string properties before we can handle the error)
+            $privateKey = file_get_contents($privateKeyPath);
+            $publicKey  = file_get_contents($publicKeyPath);
 
-            // Verify successful read
-            if ($this->privateKey === false || $this->publicKey === false) {
+            if ($privateKey === false || $publicKey === false) {
                 throw new JwtKeyNotFoundException('Failed to read JWT key files');
             }
+
+            $this->privateKey = $privateKey;
+            $this->publicKey  = $publicKey;
         } catch (JwtKeyNotFoundException $e) {
             throw $e;
         } catch (\Throwable $e) {
-            throw new JwtKeyNotFoundException('Error loading JWT keys: '.$e->getMessage(), 0, $e);
+            throw new JwtKeyNotFoundException('Error loading JWT keys: ' . $e->getMessage(), 0, $e);
         }
 
         $this->accessTokenExpiry = config('jwt.access_token_expiry', 1440); // minutes
@@ -61,15 +64,17 @@ class JwtService
     /**
      * Generate access token (short-lived)
      */
-    public function generateAccessToken(User $user): string
+    public function generateAccessToken(User $user, ?int $expiryMinutes = null): string
     {
+        $effectiveExpiry = $expiryMinutes ?? $this->accessTokenExpiry;
+
         $payload = [
             'iss' => config('app.url'),
             'sub' => $user->id,
             'user_id' => $user->id,
             'role' => $user->role->role,
             'iat' => time(),
-            'exp' => time() + ($this->accessTokenExpiry * 60),
+            'exp' => time() + ($effectiveExpiry * 60),
             'type' => 'access',
         ];
 
@@ -79,16 +84,19 @@ class JwtService
     /**
      * Generate refresh token (long-lived) and store in DB
      */
-    public function generateRefreshToken(User $user): string
+    public function generateRefreshToken(User $user, ?int $expiryMinutes = null, bool $rememberme = false): string
     {
+        $effectiveExpiry = $expiryMinutes ?? $this->refreshTokenExpiry;
+
         $payload = [
             'iss' => config('app.url'),
             'sub' => $user->id,
             'user_id' => $user->id,
             'iat' => time(),
-            'exp' => time() + ($this->refreshTokenExpiry * 60),
+            'exp' => time() + ($effectiveExpiry * 60),
             'type' => 'refresh',
             'jti' => bin2hex(random_bytes(32)), // Unique token ID
+            'remember_me' => $rememberme,
         ];
 
         $token = JWT::encode($payload, $this->privateKey, 'RS256');
@@ -98,7 +106,7 @@ class JwtService
             'user_id' => $user->id,
             'token' => $token,
             'token_hash' => hash('sha256', $token),
-            'expires_at' => Carbon::now()->addMinutes($this->refreshTokenExpiry),
+            'expires_at' => Carbon::now()->addMinutes($effectiveExpiry),
         ]);
 
         return $token;
@@ -116,7 +124,7 @@ class JwtService
         } catch (\Firebase\JWT\SignatureInvalidException $e) {
             throw new InvalidTokenException('Token signature is invalid', 0, $e);
         } catch (\Throwable $e) {
-            throw new InvalidTokenException('Invalid token: '.$e->getMessage(), 0, $e);
+            throw new InvalidTokenException('Invalid token: ' . $e->getMessage(), 0, $e);
         }
     }
 
@@ -161,13 +169,19 @@ class JwtService
             throw new AccountSuspendedException('User account is suspended');
         }
 
+        // Keep access token expiry in sync with remember-me refresh sessions.
+        $isRememberMe = isset($decoded->remember_me) && (bool) $decoded->remember_me;
+        $accessExpiryMinutes = $isRememberMe
+            ? (int) config('jwt.rememberme_access_token_expiry', 1440)
+            : $this->accessTokenExpiry;
+
         // Generate new access token
-        $newAccessToken = $this->generateAccessToken($user);
+        $newAccessToken = $this->generateAccessToken($user, $accessExpiryMinutes);
 
         return [
             'access_token' => $newAccessToken,
             'token_type' => 'Bearer',
-            'expires_in' => $this->accessTokenExpiry * 60,
+            'expires_in' => $accessExpiryMinutes * 60,
         ];
     }
 

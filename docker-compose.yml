@@ -1,57 +1,165 @@
-version: '3.8'
-
 services:
+
+  #  PostgreSQL
   postgres:
-    image: postgres:16-alpine
-    container_name: employee_management_postgres
+    image: postgis/postgis:16-3.5-alpine
+    container_name: coms_postgres
     ports:
-      - "1143:5432"
+      - "55432:5432"
+    # Exposed to host for tools like pgAdmin at localhost:55432.
     environment:
-      POSTGRES_DB: employee_db
-      POSTGRES_USER: employee_user
-      POSTGRES_PASSWORD: employee_secure_pass_2026
+      POSTGRES_DB: coms_dev
+      POSTGRES_USER: coms_user
+      POSTGRES_PASSWORD: coms_pass
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - rsa_jwt_network
+      - coms_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U employee_user -d employee_db"]
+      # Wait until pg_isready AND PostGIS extension is installed (init scripts complete)
+      test: [ "CMD-SHELL", "pg_isready -U coms_user -d coms_dev && psql -U coms_user -d coms_dev -c 'SELECT PostGIS_version()' > /dev/null 2>&1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  #  Redis
+  redis:
+    image: redis:7-alpine
+    container_name: coms_redis
+    # Port not exposed to host — only used internally by app/queue containers.
+    # To flush from host: docker compose exec redis redis-cli FLUSHALL
+    volumes:
+      - redis_data:/data
+    networks:
+      - coms_network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  backend:
+  #  Laravel App (PHP-FPM) 
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: employee_management_backend
-    ports:
-      - "1134:8000"
+      target: development
+    container_name: coms_app
     depends_on:
-      mysql:
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     environment:
-      DB_CONNECTION: mysql
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_DATABASE: employee_db
-      DB_USERNAME: employee_user
-      DB_PASSWORD: employee_secure_pass_2026
-      XDEBUG_MODE: coverage
-      XDEBUG_CONFIG: client_host=host.docker.internal
+      APP_ENV: local
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: coms_dev
+      DB_USERNAME: coms_user
+      DB_PASSWORD: coms_pass
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: database
     volumes:
       - .:/var/www/html
       - ./storage/keys:/var/www/html/storage/keys
       - ./docker/php/conf.d/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini:ro
     networks:
-      - employee_management_network
-    command: >
-      sh -c "chown -R www-data:www-data storage bootstrap/cache && chmod -R 775 storage bootstrap/cache && php artisan storage:link 2>/dev/null || true && php artisan migrate:fresh --seed --force && (php artisan jwt:generate-keys || true) && php artisan serve --host=0.0.0.0 --port=8000"
+      - coms_network
+
+  #  Nginx
+  # Handles HTTP + Telegram webhook (POST /api/v1/telegram/webhook)
+  # For Telegram to reach this in local dev, run cloudflared pointing to port 8000
+  nginx:
+    image: nginx:alpine
+    container_name: coms_nginx
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks:
+      - coms_network
+
+  #  Queue Worker
+  # Processes: SendTelegramNotification jobs + NotificationCreated broadcasts
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: coms_queue
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV: local
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: coms_dev
+      DB_USERNAME: coms_user
+      DB_PASSWORD: coms_pass
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      QUEUE_CONNECTION: database
+    volumes:
+      - .:/var/www/html
+      - ./storage/keys:/var/www/html/storage/keys
+    command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+    restart: unless-stopped
+    networks:
+      - coms_network
+
+  #  Telegram Bot (long polling)
+  # Polls Telegram getUpdates and forwards updates to the backend webhook handler
+  # internally via Docker network — no public URL or cloudflared required.
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: telegram-bot-service/Dockerfile
+    container_name: coms_telegram_bot
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET}
+      BACKEND_WEBHOOK_URL: http://nginx:80/api/v1/telegram/webhook
+    depends_on:
+      - nginx
+    networks:
+      - coms_network
+    restart: unless-stopped
+
+  # Vue 3 Frontend (Vite dev server)
+  # Hot-reload on http://localhost:5173
+  # VITE_API_BASE_URL overrides .env.local so it hits the local backend
+  frontend:
+    image: node:22-alpine
+    container_name: coms_frontend
+    working_dir: /app
+    volumes:
+      - ../../frontend_vue/automate_training_progress_management_system_version_1:/app
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000/api/v1
+    command: sh -c "npm install --prefer-offline && npm run dev"
+    networks:
+      - coms_network
 
 volumes:
-  mysql_data:
+  postgres_data:
+  redis_data:
+
 
 networks:
-  employee_management_network:
+  coms_network:
     driver: bridge

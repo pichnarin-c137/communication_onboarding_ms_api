@@ -9,7 +9,9 @@ use App\Exceptions\Business\OneAppointmentAtATimeException;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Client;
+use App\Models\Media;
 use App\Models\User;
+use App\Services\CloudinaryService;
 use App\Services\Logging\ActivityLogger;
 use App\Services\Notification\NotificationService;
 use App\Services\Onboarding\OnboardingTriggerService;
@@ -35,6 +37,7 @@ class AppointmentService
         private TrainerStatusService $trainerStatusService,
         private EtaService $etaService,
         private TrainerTrackingService $trackingService,
+        private CloudinaryService $cloudinaryService,
     ) {}
 
     // Read operations (cached)
@@ -103,7 +106,7 @@ class AppointmentService
         $ttl = config('coms.cache.appointment_show_ttl', 600);
 
         return Cache::store('redis')->remember($cacheKey, $ttl, function () use ($id) {
-            return Appointment::with(['trainer', 'client', 'creator', 'students', 'materials'])
+            return Appointment::with(['trainer', 'client', 'creator', 'students', 'materials', 'startProof', 'endProof'])
                 ->findOrFail($id);
         });
     }
@@ -233,7 +236,7 @@ class AppointmentService
         ]);
 
         // Notify trainer only when sale explicitly assigns them — not on self-created appointments
-        if (!empty($appt->creator_id) && $appt->creator_id !== $appt->trainer_id) {
+        if (! empty($appt->creator_id) && ! empty($appt->trainer_id) && $appt->creator_id !== $appt->trainer_id) {
             $this->notifyQuietly(
                 [$appt->creator_id],
                 'appointment_leave_office',
@@ -246,7 +249,7 @@ class AppointmentService
         $this->notifyTrainingTelegramQuietly($appt, 'training_on_the_way');
     }
 
-    public function startAppointment(Appointment $appt, string $proofMediaId, float $lat, float $lng): void
+    public function startAppointment(Appointment $appt, string $proofMedia, float $lat, float $lng): void
     {
         $this->statusService->validateTransition($appt, 'in_progress');
         $this->ensureNoActiveAppointment($appt->trainer_id, $appt->id);
@@ -263,9 +266,11 @@ class AppointmentService
             }
         }
 
+        $startProofMedia = $this->handleProofMedia($proofMedia, $appt->trainer_id, 'start_proof');
+
         $appt->update([
             'status' => 'in_progress',
-            'start_proof_media_id' => $proofMediaId,
+            'start_proof_media' => $startProofMedia,
             'start_lat' => $lat,
             'start_lng' => $lng,
             'actual_start_time' => now(),
@@ -281,7 +286,7 @@ class AppointmentService
             'longitude' => $lng,
         ]);
 
-        if (!empty($appt->creator_id) && $appt->creator_id !== $appt->trainer_id) {
+        if (! empty($appt->creator_id) && ! empty($appt->trainer_id) && $appt->creator_id !== $appt->trainer_id) {
             $this->notifyQuietly(
                 [$appt->creator_id],
                 'appointment_started',
@@ -296,7 +301,7 @@ class AppointmentService
 
     public function completeAppointment(
         Appointment $appt,
-        string $proofMediaId,
+        string $endProofMedia,
         float $lat,
         float $lng,
         int $count,
@@ -305,10 +310,12 @@ class AppointmentService
     ): void {
         $this->statusService->validateTransition($appt, 'done');
 
+        $endProofMedia = $this->handleProofMedia($endProofMedia, $appt->trainer_id ?? $completingUserId, 'complete_proof');
+
         $appt->update([
             'status' => 'done',
             'trainer_id' => $appt->trainer_id ?? $completingUserId,
-            'end_proof_media_id' => $proofMediaId,
+            'end_proof_media' => $endProofMedia,
             'end_lat' => $lat,
             'end_lng' => $lng,
             'actual_end_time' => now(),
@@ -327,7 +334,7 @@ class AppointmentService
             'longitude' => $lng,
         ]);
 
-        if (!empty($appt->creator_id) && $appt->creator_id !== $appt->trainer_id) {
+        if (! empty($appt->creator_id) && ! empty($appt->trainer_id) && $appt->creator_id !== $appt->trainer_id) {
             $this->notifyQuietly(
                 [$appt->creator_id],
                 'appointment_completed',
@@ -466,7 +473,8 @@ class AppointmentService
             return [];
         }
 
-        $trainer = User::with('branch')->find($appt->trainer_id);
+        $appt->loadMissing(['trainer.branch']);
+        $trainer = $appt->trainer;
         if (! $trainer) {
             return [];
         }
@@ -490,20 +498,15 @@ class AppointmentService
             ->orderBy('scheduled_start_time')
             ->get();
 
-        $otherPending = [];
+        $otherSuccess = [];
         $errors = [];
 
         foreach ($pendingAppointments as $pending) {
-            $otherPending[] = $this->buildRouteEstimate($pending, $branch);
-        }
-
-        // Separate successful estimates from errors
-        $otherSuccess = [];
-        foreach ($otherPending as $item) {
-            if (isset($item['reason'])) {
-                $errors[] = $item;
+            $estimate = $this->buildRouteEstimate($pending, $branch);
+            if (isset($estimate['reason'])) {
+                $errors[] = $estimate;
             } else {
-                $otherSuccess[] = $item;
+                $otherSuccess[] = $estimate;
             }
         }
 
@@ -637,7 +640,7 @@ class AppointmentService
 
         // Haversine fallback
         $distanceMeters = $this->trackingService->haversineDistance($fromLat, $fromLng, $toLat, $toLng);
-        $averageSpeedKmh = 40;
+        $averageSpeedKmh = config('coms.tracking.haversine_fallback_speed_kmh', 40);
         $etaMinutes = round(($distanceMeters / 1000) / $averageSpeedKmh * 60, 1);
 
         return array_merge($base, [
@@ -803,6 +806,33 @@ class AppointmentService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Helper to handle proof media.
+     * Strictly treats $proof as a Base64 string, uploads to Cloudinary,
+     * and returns the new Media record ID.
+     */
+    private function handleProofMedia(string $proof, ?string $userId, string $category): string
+    {
+        $cloudinaryData = $this->cloudinaryService->upload($proof, $category);
+
+        if (!$cloudinaryData) {
+            throw new \RuntimeException('Failed to upload proof to Cloudinary. Ensure valid Base64 string with Data URI prefix (e.g. data:image/png;base64,...)');
+        }
+
+        $media = Media::create([
+            'filename' => basename($cloudinaryData['url']),
+            'original_filename' => "proof_{$category}.png",
+            'file_url' => $cloudinaryData['url'],
+            'file_size' => $cloudinaryData['size'],
+            'mime_type' => $cloudinaryData['mime_type'],
+            'media_category' => 'other',
+            'uploaded_by_user_id' => $userId,
+            'cloudinary_public_id' => $cloudinaryData['public_id'],
+        ]);
+
+        return $media->id;
     }
 
     // Cache invalidation helpers

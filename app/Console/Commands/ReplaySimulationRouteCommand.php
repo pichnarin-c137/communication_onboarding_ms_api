@@ -88,7 +88,7 @@ class ReplaySimulationRouteCommand extends Command
         $this->info("Mode:     " . ($fullLifecycle ? 'Full lifecycle (status + pings + auto-arrive)' : 'Pings only'));
         $this->newLine();
 
-        // ── Step 1: Transition to en_route ──
+        //  Step 1: Transition to en_route 
         if ($fullLifecycle) {
             $this->info('[1/5] Changing status to en_route...');
             $currentStatus = $statusService->getCurrentStatus($trainerId);
@@ -112,7 +112,7 @@ class ReplaySimulationRouteCommand extends Command
             $this->newLine();
         }
 
-        // ── Step 2: Send GPS pings along the route ──
+        //  Step 2: Send GPS pings along the route 
         $this->info(($fullLifecycle ? '[2/5]' : '[1/1]') . ' Sending GPS pings along route...');
         $bar = $this->output->createProgressBar(count($waypoints));
         $bar->start();
@@ -183,7 +183,7 @@ class ReplaySimulationRouteCommand extends Command
             return self::SUCCESS;
         }
 
-        // ── Step 3: Start session ──
+        //  Step 3: Start session 
         $this->newLine();
         $pauseSeconds = max(1, 5 / $speedMultiplier);
         $this->info("[3/5] Starting session in " . round($pauseSeconds) . "s...");
@@ -201,7 +201,7 @@ class ReplaySimulationRouteCommand extends Command
             return self::FAILURE;
         }
 
-        // ── Step 4: Complete session ──
+        //  Step 4: Complete session 
         $sessionSeconds = max(2, 10 / $speedMultiplier);
         $this->info("[4/5] Session in progress for " . round($sessionSeconds) . "s...");
         usleep((int) ($sessionSeconds * 1_000_000));
@@ -217,7 +217,7 @@ class ReplaySimulationRouteCommand extends Command
             return self::FAILURE;
         }
 
-        // ── Step 5: Return to office ──
+        //  Step 5: Return to office 
         $returnSeconds = max(1, 3 / $speedMultiplier);
         $this->info("[5/5] Returning to office in " . round($returnSeconds) . "s...");
         usleep((int) ($returnSeconds * 1_000_000));

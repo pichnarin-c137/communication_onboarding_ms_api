@@ -22,12 +22,12 @@ class AuthService
      * Step 1: Authenticate user with username/email and password
      * Returns credential if successful, triggers OTP send
      */
-    public function initiateLogin(string $identifier, string $password): Credential
+    public function initiateLogin(string $identifier, string $password, bool $rememberme = false): Credential
     {
         // Find credential by email or username
         $credential = Credential::where('email', $identifier)
             ->orWhere('username', $identifier)
-            ->with('user.role')
+            ->with(['user.role', 'user.credential'])
             ->first();
 
         if (! $credential) {
@@ -44,6 +44,12 @@ class AuthService
             throw new AccountSuspendedException('Your account has been suspended');
         }
 
+        // Persist remember_me choice between login and verify-otp steps.
+        if ($credential->remember_me !== $rememberme) {
+            $credential->remember_me = $rememberme;
+            $credential->save();
+        }
+
         // Check rate limiting before sending OTP
         $this->otpService->canResendOtp($credential);
 
@@ -56,11 +62,11 @@ class AuthService
     /**
      * Step 2: Verify OTP and issue tokens
      */
-    public function verifyOtpAndIssueTokens(string $identifier, string $otp): array
+    public function verifyOtpAndIssueTokens(string $identifier, string $otp, ?bool $rememberme = null): array
     {
         $credential = Credential::where('email', $identifier)
             ->orWhere('username', $identifier)
-            ->with('user.role')
+            ->with(['user.role', 'user.credential'])
             ->first();
 
         if (! $credential) {
@@ -83,16 +89,33 @@ class AuthService
         }
 
         $user = $credential->user;
+        $resolvedRememberMe = $rememberme ?? (bool) $credential->remember_me;
 
-        // Generate tokens
-        $accessToken = $this->jwtService->generateAccessToken($user);
-        $refreshToken = $this->jwtService->generateRefreshToken($user);
+        return $this->issueTokens($user, $resolvedRememberMe);
+    }
+
+    /**
+     * Generate tokens for a user (bypass OTP/Password)
+     */
+    public function issueTokens(User $user, bool $rememberme = false): array
+    {
+        $accessExpiryMinutes = $rememberme
+            ? (int) config('jwt.rememberme_access_token_expiry', 1440)
+            : (int) config('jwt.access_token_expiry', 60);
+
+        $refreshExpiryMinutes = $rememberme
+            ? (int) config('jwt.rememberme_refresh_token_expiry', 43200)
+            : (int) config('jwt.refresh_token_expiry', 1440);
+
+        $accessToken = $this->jwtService->generateAccessToken($user, $accessExpiryMinutes);
+        $refreshToken = $this->jwtService->generateRefreshToken($user, $refreshExpiryMinutes, $rememberme);
 
         return [
             'access_token' => $accessToken,
             'refresh_token' => $refreshToken,
             'token_type' => 'Bearer',
-            'expires_in' => config('jwt.access_token_expiry', 1440) * 60,
+            'expires_in' => $accessExpiryMinutes * 60,
+            'refresh_expires_in' => $refreshExpiryMinutes * 60,
             'user' => $this->formatUserResponse($user),
         ];
     }

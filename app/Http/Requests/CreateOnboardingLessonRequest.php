@@ -17,6 +17,7 @@ class CreateOnboardingLessonRequest extends FormRequest
     {
         return [
             'path' => ['required', 'integer', 'in:1,2,3'],
+            'slot_index' => ['nullable', 'integer', 'min:1'],
             'lesson_document_id' => ['nullable', 'uuid', 'exists:media,id'],
             'lesson_video_url' => ['nullable', 'url', 'max:500'],
         ];

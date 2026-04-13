@@ -36,7 +36,7 @@ class OnboardingTriggerService
                 'appointment_id' => $appt->id,
                 'client_id' => $appt->client_id,
                 'trainer_id' => $appt->trainer_id,
-                'status' => 'in_progress',
+                'status' => 'pending',
                 'progress_percentage' => 0,
             ]);
 

@@ -1,6 +1,11 @@
 <?php
 
+use App\Http\Controllers\BusinessTypeController;
+use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\PlaylistController;
+use App\Http\Controllers\PlaylistTelegramController;
+use App\Http\Controllers\PlaylistVideoController;
 use App\Http\Controllers\BroadcastController;
 use App\Http\Controllers\AppointmentStudentController;
 use App\Http\Controllers\AuthController;
@@ -19,11 +24,15 @@ use App\Http\Controllers\Telegram\TelegramSetupController;
 use App\Http\Controllers\TrainerLiveStatusController;
 use App\Http\Controllers\TrainerTrackingController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserSettingsController;
+use App\Http\Controllers\DevController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
+    // Development-only routes
+    Route::get('/dev/login/{email}', [DevController::class, 'loginAs']);
 
     Route::get('/healthcheck', function () {
         $status = [
@@ -111,6 +120,11 @@ Route::prefix('v1')->group(function () {
             Route::patch('/read-all', [NotificationController::class, 'markAllRead']);
         });
 
+        Route::prefix('settings')->group(function () {
+            Route::get('/', [UserSettingsController::class, 'show']);
+            Route::patch('/', [UserSettingsController::class, 'update']);
+        });
+
         Route::prefix('appointments')->group(function () {
             Route::get('/', [AppointmentController::class, 'index'])->name('appointments.index');
             Route::post('/', [AppointmentController::class, 'store'])->name('appointments.store');
@@ -135,6 +149,7 @@ Route::prefix('v1')->group(function () {
                 ->middleware('throttle:onboarding_refresh')
                 ->name('onboarding.refreshProgress');
 
+            Route::patch('/{id}/start', [OnboardingController::class, 'start'])->name('onboarding.start');
             Route::patch('/{id}/complete', [OnboardingController::class, 'complete'])->name('onboarding.complete');
             Route::post('/{id}/cancel', [OnboardingController::class, 'cancel'])->name('onboarding.cancel');
 
@@ -147,6 +162,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/{id}/policies', [OnboardingPolicyController::class, 'index'])->name('onboarding.policies.index');
             Route::post('/{id}/policies', [OnboardingPolicyController::class, 'store'])->name('onboarding.policies.store');
             Route::patch('/{id}/policies/{pid}/check', [OnboardingPolicyController::class, 'check'])->name('onboarding.policies.check');
+            Route::patch('/{id}/policies/{pid}/uncheck', [OnboardingPolicyController::class, 'uncheck'])->name('onboarding.policies.uncheck');
             Route::delete('/{id}/policies/{pid}', [OnboardingPolicyController::class, 'destroy'])->name('onboarding.policies.destroy');
 
             Route::get('/{id}/lessons', [OnboardingLessonController::class, 'index'])->name('onboarding.lessons.index');
@@ -190,6 +206,50 @@ Route::prefix('v1')->group(function () {
         // Pusher private channel auth — JWT-aware, no Auth::user() dependency
         Route::post('/broadcasting/auth', [BroadcastController::class, 'auth']);
 
+        // Playlist Management
+        Route::prefix('playlists')->group(function () {
+            Route::get('/', [PlaylistController::class, 'index'])->name('playlists.index');
+            Route::post('/', [PlaylistController::class, 'store'])->name('playlists.store');
+            Route::get('/{id}', [PlaylistController::class, 'show'])->name('playlists.show');
+            Route::put('/{id}', [PlaylistController::class, 'update'])->name('playlists.update');
+            Route::delete('/{id}', [PlaylistController::class, 'destroy'])->name('playlists.destroy');
+
+            // Videos within a playlist
+            Route::get('/{id}/videos', [PlaylistVideoController::class, 'index'])->name('playlists.videos.index');
+            Route::post('/{id}/videos', [PlaylistVideoController::class, 'store'])->name('playlists.videos.store');
+            Route::get('/{id}/videos/{vid}', [PlaylistVideoController::class, 'show'])->name('playlists.videos.show');
+            Route::put('/{id}/videos/{vid}', [PlaylistVideoController::class, 'update'])->name('playlists.videos.update');
+            Route::delete('/{id}/videos/{vid}', [PlaylistVideoController::class, 'destroy'])->name('playlists.videos.destroy');
+            Route::patch('/{id}/videos/reorder', [PlaylistVideoController::class, 'reorder'])->name('playlists.videos.reorder');
+
+            // Telegram send actions
+            Route::post('/{id}/send', [PlaylistTelegramController::class, 'sendPlaylist'])
+                ->middleware('throttle:lesson_send')
+                ->name('playlists.send');
+            Route::post('/{id}/videos/{vid}/send', [PlaylistTelegramController::class, 'sendVideo'])
+                ->middleware('throttle:lesson_send')
+                ->name('playlists.videos.send');
+        });
+
+        // Business Types (read: all roles; write: admin only)
+        Route::get('business-types', [BusinessTypeController::class, 'index'])->name('business-types.index');
+        Route::get('business-types/{id}', [BusinessTypeController::class, 'show'])->name('business-types.show');
+        Route::middleware('role:admin,sale')->group(function () {
+            Route::post('business-types', [BusinessTypeController::class, 'store'])->name('business-types.store');
+            Route::put('business-types/{id}', [BusinessTypeController::class, 'update'])->name('business-types.update');
+            Route::delete('business-types/{id}', [BusinessTypeController::class, 'destroy'])->name('business-types.destroy');
+        });
+
+        // Companies (extract-document must come before {id} to avoid route collision)
+        Route::post('companies/extract-document', [CompanyController::class, 'extractDocument'])
+            ->middleware('throttle:document_extract')
+            ->name('companies.extract-document');
+        Route::get('companies', [CompanyController::class, 'index'])->name('companies.index');
+        Route::post('companies', [CompanyController::class, 'store'])->name('companies.store');
+        Route::get('companies/{id}', [CompanyController::class, 'show'])->name('companies.show');
+        Route::put('companies/{id}', [CompanyController::class, 'update'])->name('companies.update');
+        Route::delete('companies/{id}', [CompanyController::class, 'destroy'])->name('companies.destroy');
+
         // Telegram management (authenticated, sale + admin only)
         Route::middleware(['role:sale,admin'])->prefix('telegram')->group(function () {
             Route::post('/setup-token', [TelegramSetupController::class, 'generateToken'])->name('telegram.setup-token');
@@ -203,7 +263,6 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/messages', [TelegramMessageController::class, 'index'])->name('telegram.messages.index');
         });
-
     });
 
     // Telegram webhook — no auth, protected by secret header middleware only

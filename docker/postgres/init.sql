@@ -1,5 +1,2 @@
--- Enable UUID extension
+-- Enable UUID extension required by all COMS tables
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- Set default UUID generation
-ALTER DATABASE employee_db SET default_with_oids = false;

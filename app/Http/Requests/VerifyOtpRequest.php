@@ -15,9 +15,12 @@ class VerifyOtpRequest extends FormRequest
 
     public function rules(): array
     {
+        $otpLength = (int) config('otp.length', 6);
+
         return [
             'identifier' => ['required', 'string'], // email or username
-            'otp' => ['required', 'string', 'digits:4'],
+            'otp' => ['required', 'string', 'digits:' . $otpLength],
+            'remember_me' => ['nullable', 'boolean'],
         ];
     }
 

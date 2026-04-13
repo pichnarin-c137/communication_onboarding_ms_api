@@ -20,6 +20,7 @@ class Credential extends Model
         'password',
         'otp',
         'otp_expiry',
+        'remember_me'
     ];
 
     protected $hidden = [
@@ -32,6 +33,7 @@ class Credential extends Model
         'user_id' => 'string',
         'otp_expiry' => 'datetime',
         'password' => 'hashed',
+        'remember_me' => 'boolean'
     ];
 
     public $incrementing = false;

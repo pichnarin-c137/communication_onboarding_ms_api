@@ -50,6 +50,19 @@ class OnboardingPolicyController extends Controller
         ]);
     }
 
+    public function uncheck(Request $request, string $onboardingId, string $policyId): JsonResponse
+    {
+        $policy = OnboardingRequest::findOrFail($onboardingId)->policies()->findOrFail($policyId);
+
+        $updated = $this->onboardingService->uncheckPolicy($policy, $request->get('auth_user_id'));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Policy unchecked.',
+            'data' => $updated,
+        ]);
+    }
+
     public function destroy(string $onboardingId, string $policyId): JsonResponse
     {
         $policy = OnboardingRequest::findOrFail($onboardingId)->policies()->findOrFail($policyId);

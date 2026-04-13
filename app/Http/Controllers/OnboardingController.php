@@ -51,6 +51,17 @@ class OnboardingController extends Controller
         ]);
     }
 
+    public function start(string $id): JsonResponse
+    {
+        $onboarding = OnboardingRequest::findOrFail($id);
+        $this->onboardingService->start($onboarding);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Onboarding started.',
+        ]);
+    }
+
     public function complete(Request $request, string $id): JsonResponse
     {
         $onboarding = OnboardingRequest::findOrFail($id);

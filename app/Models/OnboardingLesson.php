@@ -20,6 +20,7 @@ class OnboardingLesson extends Model
     protected $fillable = [
         'onboarding_id',
         'path',
+        'slot_index',
         'lesson_document_id',
         'lesson_video_url',
         'is_sent',
@@ -35,6 +36,7 @@ class OnboardingLesson extends Model
         'sent_by_user_id' => 'string',
         'telegram_message_id' => 'string',
         'path' => 'integer',
+        'slot_index' => 'integer',
         'is_sent' => 'boolean',
         'sent_at' => 'datetime',
     ];

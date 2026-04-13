@@ -12,17 +12,20 @@ use App\Models\OnboardingPolicy;
 use App\Models\OnboardingRequest;
 use App\Models\OnboardingSystemAnalysis;
 use App\Models\User;
+use App\Services\CloudinaryService;
 use App\Services\Notification\NotificationService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class OnboardingService
 {
     public function __construct(
         private OnboardingProgressService $progressService,
         private LessonSendService $lessonSendService,
-        private NotificationService $notificationService
+        private NotificationService $notificationService,
+        private CloudinaryService $cloudinaryService,
     ) {}
 
     // Read operations (cached)
@@ -73,7 +76,10 @@ class OnboardingService
         return Cache::store('redis')->remember($cacheKey, $ttl, function () use ($id) {
             return OnboardingRequest::with([
                 'client', 'trainer', 'appointment',
-                'companyInfo', 'systemAnalysis', 'policies', 'lessons',
+                'companyInfo',
+                'systemAnalysis',
+                'policies' => fn ($q) => $q->orderBy('created_at')->orderBy('id'),
+                'lessons' => fn ($q) => $q->orderBy('path')->orderBy('slot_index')->orderBy('created_at')->orderBy('id'),
             ])->findOrFail($id);
         });
     }
@@ -88,6 +94,20 @@ class OnboardingService
         $this->invalidateOnboarding($id, $result->trainer_id);
 
         return $result;
+    }
+
+
+
+    public function start(OnboardingRequest $onboarding): void
+    {
+        if ($onboarding->status !== 'pending') {
+            throw new InvalidStatusTransitionException(
+                "Onboarding cannot be started — current status is '{$onboarding->status}'."
+            );
+        }
+
+        $onboarding->update(['status' => 'in_progress']);
+        $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
     }
 
     public function complete(OnboardingRequest $onboarding, User $trainer): void
@@ -139,7 +159,7 @@ class OnboardingService
 
     public function cancel(OnboardingRequest $onboarding, ?string $reason): void
     {
-        if ($onboarding->status !== 'in_progress') {
+        if (! in_array($onboarding->status, ['pending', 'in_progress'])) {
             throw new InvalidStatusTransitionException(
                 "Onboarding cannot be cancelled — current status is '{$onboarding->status}'."
             );
@@ -161,17 +181,27 @@ class OnboardingService
 
     public function updateCompanyInfo(OnboardingCompanyInfo $info, array $data, string $userId): OnboardingCompanyInfo
     {
-        $updateData = array_filter($data, fn ($v) => ! is_null($v));
+        // Decode the incoming content JSON (company name, phone, etc.) into an array
+        $contentArray = json_decode($data['content'] ?? '{}', true) ?? [];
 
-        if (! empty($data['is_completed'])) {
-            $updateData['completed_at'] = now();
-            $updateData['completed_by_user_id'] = $userId;
+        // Upload logo / patent images to Cloudinary if Base64 data URIs were provided
+        $this->uploadBase64ToContent($contentArray, $data['logo_base64'] ?? null, 'logos', 'logo_url', $info->onboarding_id);
+        $this->uploadBase64ToContent($contentArray, $data['patent_document_base64'] ?? null, 'patents', 'patent_image_url', $info->onboarding_id);
+
+        $updateData = ['content' => json_encode($contentArray, JSON_UNESCAPED_UNICODE)];
+
+        if (isset($data['is_completed'])) {
+            $updateData['is_completed'] = $data['is_completed'];
+            if ($data['is_completed']) {
+                $updateData['completed_at']          = now();
+                $updateData['completed_by_user_id']  = $userId;
+            }
         }
 
         $info->update($updateData);
         $this->invalidateOnboarding($info->onboarding_id, $info->onboarding?->trainer_id);
 
-        return $info->fresh();
+        return $info;
     }
 
     // System Analysis
@@ -189,7 +219,7 @@ class OnboardingService
         $analysis->update(array_filter($data, fn ($v) => ! is_null($v)));
         $this->invalidateOnboarding($analysis->onboarding_id, $analysis->onboarding?->trainer_id);
 
-        return $analysis->fresh();
+        return $analysis;
     }
 
     // Policies
@@ -226,6 +256,19 @@ class OnboardingService
         return $policy->fresh();
     }
 
+    public function uncheckPolicy(OnboardingPolicy $policy, string $userId): OnboardingPolicy
+    {
+        $policy->update([
+            'is_checked' => false,
+            'unchecked_at' => now(),
+            'unchecked_by_user_id' => $userId,
+        ]);
+
+        $this->invalidateOnboarding($policy->onboarding_id, $policy->onboarding?->trainer_id);
+
+        return $policy->fresh();
+    }
+
     public function removePolicy(OnboardingPolicy $policy): void
     {
         if ($policy->is_default) {
@@ -244,13 +287,23 @@ class OnboardingService
 
     public function listLessons(OnboardingRequest $onboarding): Collection
     {
-        return $onboarding->lessons()->orderBy('created_at')->get();
+        return $onboarding->lessons()
+            ->orderBy('path')
+            ->orderBy('slot_index')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
     }
 
     public function addLesson(OnboardingRequest $onboarding, array $data): OnboardingLesson
     {
+        $slotIndex = isset($data['slot_index'])
+            ? max(1, (int) $data['slot_index'])
+            : $this->nextLessonSlotIndex($onboarding->id, (int) $data['path']);
+
         $lesson = OnboardingLesson::create(array_merge($data, [
             'onboarding_id' => $onboarding->id,
+            'slot_index' => $slotIndex,
             'is_sent' => false,
         ]));
 
@@ -289,6 +342,33 @@ class OnboardingService
     {
         $this->lessonSendService->send($lesson, $userId);
         $this->invalidateOnboarding($lesson->onboarding_id, $lesson->onboarding?->trainer_id);
+    }
+
+    // Private helpers
+
+    private function uploadBase64ToContent(array &$contentArray, ?string $base64, string $category, string $urlKey, string $onboardingId): void
+    {
+        if (empty($base64)) {
+            return;
+        }
+
+        $result = $this->cloudinaryService->upload($base64, $category);
+        if ($result) {
+            $contentArray[$urlKey] = $result['url'];
+        } else {
+            Log::warning("OnboardingService: {$category} Cloudinary upload failed.", [
+                'onboarding_id' => $onboardingId,
+            ]);
+        }
+    }
+
+    private function nextLessonSlotIndex(string $onboardingId, int $path): int
+    {
+        $maxSlot = OnboardingLesson::where('onboarding_id', $onboardingId)
+            ->where('path', $path)
+            ->max('slot_index');
+
+        return ((int) $maxSlot) + 1;
     }
 
     // Cache invalidation helpers
