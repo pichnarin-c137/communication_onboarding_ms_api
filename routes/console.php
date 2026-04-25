@@ -12,3 +12,6 @@ Artisan::command('inspire', function () {
 Schedule::command('tracking:recalculate-eta')->everyMinute();
 Schedule::command('tracking:flush-and-check')->everyFiveMinutes();
 Schedule::command('tracking:cleanup-pings')->dailyAt('03:00');
+
+// Onboarding SLA check
+Schedule::command('onboarding:check-sla')->daily();

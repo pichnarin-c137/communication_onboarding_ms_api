@@ -34,10 +34,10 @@ class TelegramSetupController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Setup token generated successfully.',
-            'data'    => [
-                'token'      => $token->token,
+            'data' => [
+                'token' => $token->token,
                 'expires_at' => $token->expires_at->format('Y-m-d H:i:s'),
-                'client_id'  => $token->client_id,
+                'client_id' => $token->client_id,
             ],
         ], 201);
     }

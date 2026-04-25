@@ -17,11 +17,21 @@ class OnboardingProgressService
         $total = 0;
         $completed = 0;
 
-        // Company info (1 task)
-        $total += 1;
+        // Company info (9 tasks — one per field in content JSON)
+        $companyInfoFields = [
+            'company_name', 'company_name_kh', 'business_type',
+            'owner_name', 'owner_name_kh', 'phone',
+            'address_kh', 'logo_url', 'patent_image_url',
+        ];
+        $total += count($companyInfoFields);
         $companyInfo = $onboarding->companyInfo;
-        if ($companyInfo && $companyInfo->is_completed) {
-            $completed += 1;
+        if ($companyInfo) {
+            $content = json_decode($companyInfo->content ?? '{}', true) ?? [];
+            foreach ($companyInfoFields as $field) {
+                if (! empty($content[$field])) {
+                    $completed += 1;
+                }
+            }
         }
 
         // System analysis (3 sub-tasks: each count > 0)

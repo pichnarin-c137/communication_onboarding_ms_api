@@ -39,7 +39,10 @@ return [
     | Business Rules
     |--------------------------------------------------------------------------
     */
-    'onboarding_completion_threshold' => env('COMS_ONBOARDING_COMPLETION_THRESHOLD', 90.0),
+    'onboarding_completion_threshold' => env('COMS_ONBOARDING_COMPLETION_THRESHOLD', 99.0),
+    'onboarding_due_days' => env('COMS_ONBOARDING_DUE_DAYS', 30),
+    'feedback_token_ttl_days' => env('COMS_FEEDBACK_TOKEN_TTL_DAYS', 7),
+    'password_reset_ttl_minutes' => env('COMS_PASSWORD_RESET_TTL_MINUTES', 60),
 
     /*
     |--------------------------------------------------------------------------

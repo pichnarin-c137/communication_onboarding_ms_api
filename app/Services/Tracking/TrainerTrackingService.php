@@ -5,7 +5,6 @@ namespace App\Services\Tracking;
 use App\Events\TrainerLocationUpdated;
 use App\Exceptions\Business\LocationPingRejectedException;
 use App\Models\Client;
-use App\Models\TrainerLocationPing;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +14,9 @@ use Illuminate\Support\Facades\Redis;
 class TrainerTrackingService
 {
     public const KEY_LOCATIONS = 'trainer:locations';
+
     public const KEY_CUSTOMER_LOCATIONS = 'customer:locations';
+
     public const KEY_GEOFENCE_TARGETS = 'geofence:targets';
 
     public function __construct(
@@ -39,6 +40,7 @@ class TrainerTrackingService
 
     /**
      * Process an incoming GPS ping from a trainer's device.
+     * @throws LocationPingRejectedException
      */
     public function processPing(string $trainerId, array $data): void
     {
@@ -61,7 +63,7 @@ class TrainerTrackingService
         $maxAge = config('coms.tracking.max_ping_age_seconds', 60);
         if ($timestamp->diffInSeconds(now(), false) > $maxAge) {
             throw new LocationPingRejectedException(
-                "Ping timestamp is too old.",
+                'Ping timestamp is too old.',
                 context: ['trainer_id' => $trainerId, 'age_seconds' => $timestamp->diffInSeconds(now())]
             );
         }
@@ -71,7 +73,7 @@ class TrainerTrackingService
         if ($accuracy == 0) {
             $this->anomalyService->checkGpsSpoofing($trainerId, $data);
             throw new LocationPingRejectedException(
-                "Accuracy of exactly 0m indicates GPS spoofing.",
+                'Accuracy of exactly 0m indicates GPS spoofing.',
                 context: ['trainer_id' => $trainerId]
             );
         }
@@ -200,7 +202,7 @@ class TrainerTrackingService
 
             $positions[] = [
                 'id' => $user->id,
-                'name' => trim($user->first_name . ' ' . $user->last_name),
+                'name' => trim($user->first_name.' '.$user->last_name),
                 'lng' => $gps['lng'] ?? ($status['lng'] ?? null),
                 'lat' => $gps['lat'] ?? ($status['lat'] ?? null),
                 'status' => $status['status'] ?? 'at_office',
@@ -260,8 +262,8 @@ class TrainerTrackingService
         }
 
         DB::statement(
-            "INSERT INTO trainer_location_pings (id, trainer_id, location, accuracy, speed, pinged_at, created_at, updated_at)
-             VALUES " . implode(', ', $placeholders),
+            'INSERT INTO trainer_location_pings (id, trainer_id, location, accuracy, speed, pinged_at, created_at, updated_at)
+             VALUES '.implode(', ', $placeholders),
             $bindings
         );
 

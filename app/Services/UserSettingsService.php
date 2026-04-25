@@ -31,9 +31,9 @@ class UserSettingsService
         $settings = $this->getSettings($userId);
 
         $channelEnabled = match ($channel) {
-            'in_app'   => $settings->in_app_notifications,
+            'in_app' => $settings->in_app_notifications,
             'telegram' => $settings->telegram_notifications,
-            default    => true,
+            default => true,
         };
 
         if (! $channelEnabled) {

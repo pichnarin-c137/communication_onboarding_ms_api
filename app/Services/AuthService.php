@@ -5,11 +5,19 @@ namespace App\Services;
 use App\Exceptions\AccountSuspendedException;
 use App\Exceptions\InvalidCredentialsException;
 use App\Exceptions\InvalidOtpException;
+use App\Exceptions\InvalidTokenException;
+use App\Exceptions\MailDeliveryException;
 use App\Exceptions\OtpExpiredException;
+use App\Exceptions\OtpRateLimitException;
+use App\Exceptions\TokenExpiredException;
+use App\Mail\ForgotPasswordMail;
 use App\Models\Credential;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Random\RandomException;
 
 class AuthService
 {
@@ -21,6 +29,10 @@ class AuthService
     /**
      * Step 1: Authenticate user with username/email and password
      * Returns credential if successful, triggers OTP send
+     * @throws AccountSuspendedException
+     * @throws InvalidCredentialsException
+     * @throws OtpRateLimitException
+     * @throws MailDeliveryException
      */
     public function initiateLogin(string $identifier, string $password, bool $rememberme = false): Credential
     {
@@ -61,6 +73,7 @@ class AuthService
 
     /**
      * Step 2: Verify OTP and issue tokens
+     * @throws InvalidOtpException
      */
     public function verifyOtpAndIssueTokens(string $identifier, string $otp, ?bool $rememberme = null): array
     {
@@ -118,6 +131,80 @@ class AuthService
             'refresh_expires_in' => $refreshExpiryMinutes * 60,
             'user' => $this->formatUserResponse($user),
         ];
+    }
+
+    // Forgot password (unauthenticated)
+
+    /**
+     * Step 1: Generate a reset token and email a reset link.
+     * Always returns silently when the email is not found (prevent enumeration).
+     * @throws RandomException
+     */
+    public function forgotPassword(string $email): void
+    {
+        $credential = Credential::where('email', $email)->first();
+
+        if (! $credential) {
+            return;
+        }
+
+        $rawToken = bin2hex(random_bytes(32));
+        $ttlMinutes = (int) config('coms.password_reset_ttl_minutes', 60);
+        $resetLink = url('/reset-password').'?token='.$rawToken.'&email='.urlencode($email);
+
+        $credential->update([
+            'reset_token' => hash('sha256', $rawToken),
+            'reset_token_expires_at' => Carbon::now()->addMinutes($ttlMinutes),
+        ]);
+
+        try {
+            Mail::to($email)->queue(new ForgotPasswordMail($resetLink, $ttlMinutes));
+        } catch (\Throwable $e) {
+            Log::error('Failed to queue password reset email', ['email' => $email, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Step 2: Verify reset token and set the new password.
+     */
+    public function resetPassword(string $email, string $plainToken, string $newPassword): void
+    {
+        $credential = Credential::where('email', $email)->first();
+
+        if (! $credential || ! $credential->reset_token) {
+            throw new InvalidTokenException('Invalid or expired password reset token.');
+        }
+
+        if (Carbon::now()->greaterThan($credential->reset_token_expires_at)) {
+            $credential->update(['reset_token' => null, 'reset_token_expires_at' => null]);
+            throw new TokenExpiredException('Password reset link has expired. Please request a new one.');
+        }
+
+        if (! hash_equals(hash('sha256', $plainToken), $credential->reset_token)) {
+            throw new InvalidTokenException('Invalid or expired password reset token.');
+        }
+
+        $credential->update([
+            'password' => $newPassword,
+            'reset_token' => null,
+            'reset_token_expires_at' => null,
+        ]);
+    }
+
+    // Change password (authenticated — user is logged in)
+
+    /**
+     * Verify the current password and update to the new one.
+     */
+    public function changePassword(string $userId, string $oldPassword, string $newPassword): void
+    {
+        $credential = Credential::where('user_id', $userId)->firstOrFail();
+
+        if (! Hash::check($oldPassword, $credential->password)) {
+            throw new InvalidCredentialsException('Current password is incorrect.');
+        }
+
+        $credential->update(['password' => $newPassword]);
     }
 
     /**

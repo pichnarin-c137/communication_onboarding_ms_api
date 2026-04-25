@@ -2,15 +2,19 @@
 
 namespace App\Services\Onboarding;
 
+use App\Exceptions\Business\ClientFeedbackRequiredException;
 use App\Exceptions\Business\DefaultPolicyCannotBeRemovedException;
 use App\Exceptions\Business\InvalidStatusTransitionException;
 use App\Exceptions\Business\LessonLockedAfterSendException;
 use App\Exceptions\Business\OnboardingProgressTooLowException;
+use App\Models\OnboardingAppointment;
+use App\Models\OnboardingClientFeedback;
 use App\Models\OnboardingCompanyInfo;
 use App\Models\OnboardingLesson;
 use App\Models\OnboardingPolicy;
 use App\Models\OnboardingRequest;
 use App\Models\OnboardingSystemAnalysis;
+use App\Models\OnboardingTrainerAssignment;
 use App\Models\User;
 use App\Services\CloudinaryService;
 use App\Services\Notification\NotificationService;
@@ -37,19 +41,23 @@ class OnboardingService
 
         $all = Cache::store('redis')->remember($cacheKey, $ttl, function () use ($user) {
             $role = $user->role->role ?? null;
-            $query = OnboardingRequest::with(['client', 'trainer', 'appointment']);
+            $query = OnboardingRequest::with([
+                    'client:id,company_code,company_name',
+                    'trainer:id,first_name,last_name',
+                    'appointment.creator:id,first_name,last_name',
+                ]);
 
             if ($role === 'trainer') {
                 $query->where('trainer_id', $user->id);
             } elseif ($role === 'sale') {
-                $query->whereHas('appointment', fn ($q) => $q->where('creator_id', $user->id));
+                $query->whereHas('appointment', fn($q) => $q->where('creator_id', $user->id));
             }
 
             return $query->orderByDesc('created_at')->get();
         });
 
         $filtered = $all
-            ->when(! empty($filters['status']), fn ($c) => $c->where('status', $filters['status']))
+            ->when(! empty($filters['status']), fn($c) => $c->where('status', $filters['status']))
             ->values();
 
         $total = $filtered->count();
@@ -75,11 +83,13 @@ class OnboardingService
 
         return Cache::store('redis')->remember($cacheKey, $ttl, function () use ($id) {
             return OnboardingRequest::with([
-                'client', 'trainer', 'appointment',
+                'client.sales.createdBy',
+                'trainer',
+                'appointment.creator',
                 'companyInfo',
                 'systemAnalysis',
-                'policies' => fn ($q) => $q->orderBy('created_at')->orderBy('id'),
-                'lessons' => fn ($q) => $q->orderBy('path')->orderBy('slot_index')->orderBy('created_at')->orderBy('id'),
+                'policies' => fn($q) => $q->orderBy('created_at')->orderBy('id'),
+                'lessons' => fn($q) => $q->orderBy('path')->orderBy('slot_index')->orderBy('created_at')->orderBy('id'),
             ])->findOrFail($id);
         });
     }
@@ -94,6 +104,15 @@ class OnboardingService
         $this->invalidateOnboarding($id, $result->trainer_id);
 
         return $result;
+    }
+
+    public function getClientSales(string $id): OnboardingRequest
+    {
+        return OnboardingRequest::with([
+            'client.sales.createdBy',
+            'trainer',
+            'appointment.creator',
+        ])->findOrFail($id);
     }
 
 
@@ -118,7 +137,7 @@ class OnboardingService
             );
         }
 
-        $onboarding->load(['companyInfo', 'systemAnalysis', 'policies', 'lessons']);
+        $onboarding->load(['companyInfo', 'systemAnalysis', 'policies', 'lessons', 'clientFeedback']);
         $progress = $this->progressService->calculate($onboarding);
         $threshold = config('coms.onboarding_completion_threshold', 90.0);
 
@@ -126,6 +145,10 @@ class OnboardingService
             throw new OnboardingProgressTooLowException(
                 "Onboarding progress is {$progress}%. At least {$threshold}% is required to mark as complete."
             );
+        }
+
+        if (! $onboarding->clientFeedback) {
+            throw new ClientFeedbackRequiredException;
         }
 
         DB::transaction(function () use ($onboarding, $progress) {
@@ -159,7 +182,7 @@ class OnboardingService
 
     public function cancel(OnboardingRequest $onboarding, ?string $reason): void
     {
-        if (! in_array($onboarding->status, ['pending', 'in_progress'])) {
+        if (! in_array($onboarding->status, ['pending', 'in_progress', 'on_hold', 'revision_requested'])) {
             throw new InvalidStatusTransitionException(
                 "Onboarding cannot be cancelled — current status is '{$onboarding->status}'."
             );
@@ -167,6 +190,333 @@ class OnboardingService
 
         $onboarding->update(['status' => 'cancelled']);
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+    }
+
+    public function hold(OnboardingRequest $onboarding, string $reason, string $userId): void
+    {
+        if ($onboarding->status !== 'in_progress') {
+            throw new InvalidStatusTransitionException(
+                "Onboarding cannot be put on hold — current status is '{$onboarding->status}'."
+            );
+        }
+
+        $onboarding->update([
+            'status' => 'on_hold',
+            'hold_reason' => $reason,
+            'hold_started_at' => now(),
+            'hold_count' => $onboarding->hold_count + 1,
+        ]);
+
+        try {
+            $recipients = array_unique(array_filter([
+                $onboarding->appointment?->creator_id,
+            ]));
+            if (! empty($recipients)) {
+                $this->notificationService->notify(
+                    $recipients,
+                    'onboarding_held',
+                    'Onboarding Put On Hold',
+                    "Onboarding {$onboarding->request_code} has been put on hold. Reason: {$reason}",
+                    ['type' => 'onboarding_request', 'id' => $onboarding->id]
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::error('OnboardingService hold notification failed', [
+                'onboarding_id' => $onboarding->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+    }
+
+    public function resumeHold(OnboardingRequest $onboarding, string $userId): void
+    {
+        if ($onboarding->status !== 'on_hold') {
+            throw new InvalidStatusTransitionException(
+                "Onboarding cannot be resumed — current status is '{$onboarding->status}'."
+            );
+        }
+
+        $onboarding->update([
+            'status' => 'in_progress',
+            'hold_reason' => null,
+            'hold_started_at' => null,
+        ]);
+
+        try {
+            $creatorId = $onboarding->appointment?->creator_id;
+            if ($creatorId) {
+                $this->notificationService->notify(
+                    [$creatorId],
+                    'onboarding_resumed',
+                    'Onboarding Resumed',
+                    "Onboarding {$onboarding->request_code} has been resumed.",
+                    ['type' => 'onboarding_request', 'id' => $onboarding->id]
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::error('OnboardingService resumeHold notification failed', [
+                'onboarding_id' => $onboarding->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+    }
+
+    public function requestRevision(OnboardingRequest $onboarding, string $note, string $userId): void
+    {
+        if ($onboarding->status !== 'in_progress') {
+            throw new InvalidStatusTransitionException(
+                "Revision can only be requested when onboarding is in progress — current status is '{$onboarding->status}'."
+            );
+        }
+
+        $onboarding->update([
+            'status' => 'revision_requested',
+            'revision_note' => $note,
+            'revision_requested_at' => now(),
+            'revision_requested_by_user_id' => $userId,
+        ]);
+
+        try {
+            if ($onboarding->trainer_id) {
+                $this->notificationService->notify(
+                    [$onboarding->trainer_id],
+                    'onboarding_revision_requested',
+                    'Revision Requested',
+                    "A revision has been requested for onboarding {$onboarding->request_code}. Note: {$note}",
+                    ['type' => 'onboarding_request', 'id' => $onboarding->id]
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::error('OnboardingService requestRevision notification failed', [
+                'onboarding_id' => $onboarding->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+    }
+
+    public function acknowledgeRevision(OnboardingRequest $onboarding, string $userId): void
+    {
+        if ($onboarding->status !== 'revision_requested') {
+            throw new InvalidStatusTransitionException(
+                "Cannot acknowledge revision — current status is '{$onboarding->status}'."
+            );
+        }
+
+        // revision_note is preserved as per design
+        $onboarding->update([
+            'status' => 'in_progress',
+        ]);
+
+        try {
+            $requesterId = $onboarding->revision_requested_by_user_id;
+            if ($requesterId) {
+                $this->notificationService->notify(
+                    [$requesterId],
+                    'onboarding_revision_acknowledged',
+                    'Revision Acknowledged',
+                    "The trainer has acknowledged the revision request for onboarding {$onboarding->request_code}.",
+                    ['type' => 'onboarding_request', 'id' => $onboarding->id]
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::error('OnboardingService acknowledgeRevision notification failed', [
+                'onboarding_id' => $onboarding->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+    }
+
+    public function reopen(OnboardingRequest $onboarding, string $userId): void
+    {
+        if ($onboarding->status !== 'cancelled') {
+            throw new InvalidStatusTransitionException(
+                "Onboarding cannot be reopened — current status is '{$onboarding->status}'."
+            );
+        }
+
+        $onboarding->update([
+            'status' => 'in_progress',
+            'reopened_at' => now(),
+            'reopened_by_user_id' => $userId,
+        ]);
+
+        try {
+            if ($onboarding->trainer_id) {
+                $this->notificationService->notify(
+                    [$onboarding->trainer_id],
+                    'onboarding_reopened',
+                    'Onboarding Reopened',
+                    "Onboarding {$onboarding->request_code} has been reopened. Please resume your work.",
+                    ['type' => 'onboarding_request', 'id' => $onboarding->id]
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::error('OnboardingService reopen notification failed', [
+                'onboarding_id' => $onboarding->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+    }
+
+    public function reassignTrainer(OnboardingRequest $onboarding, string $newTrainerId, string $adminId, ?string $notes): void
+    {
+        $newTrainer = User::with('role')->findOrFail($newTrainerId);
+
+        if (($newTrainer->role->role ?? null) !== 'trainer') {
+            throw new InvalidStatusTransitionException(
+                "The selected user is not a trainer."
+            );
+        }
+
+        $oldTrainerId = $onboarding->trainer_id;
+
+        DB::transaction(function () use ($onboarding, $newTrainerId, $adminId, $notes) {
+            // Close current assignment
+            OnboardingTrainerAssignment::where('onboarding_id', $onboarding->id)
+                ->where('is_current', true)
+                ->update([
+                    'is_current' => false,
+                    'replaced_at' => now(),
+                ]);
+
+            // Insert new assignment
+            OnboardingTrainerAssignment::create([
+                'onboarding_id' => $onboarding->id,
+                'trainer_id' => $newTrainerId,
+                'assigned_by_id' => $adminId,
+                'assigned_at' => now(),
+                'is_current' => true,
+                'notes' => $notes,
+            ]);
+
+            // Update authoritative trainer_id
+            $onboarding->update(['trainer_id' => $newTrainerId]);
+        });
+
+        try {
+            if ($oldTrainerId && $oldTrainerId !== $newTrainerId) {
+                $this->notificationService->notify(
+                    [$oldTrainerId],
+                    'onboarding_trainer_reassigned',
+                    'Onboarding Reassigned',
+                    "You have been removed from onboarding {$onboarding->request_code}.",
+                    ['type' => 'onboarding_request', 'id' => $onboarding->id]
+                );
+            }
+
+            $this->notificationService->notify(
+                [$newTrainerId],
+                'onboarding_trainer_reassigned',
+                'Onboarding Assigned',
+                "You have been assigned to onboarding {$onboarding->request_code}.",
+                ['type' => 'onboarding_request', 'id' => $onboarding->id]
+            );
+        } catch (\Throwable $e) {
+            Log::error('OnboardingService reassignTrainer notification failed', [
+                'onboarding_id' => $onboarding->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Invalidate both trainers' caches
+        if ($oldTrainerId) {
+            Cache::store('redis')->forget("onboarding:list:{$oldTrainerId}");
+        }
+        Cache::store('redis')->forget("onboarding:list:{$newTrainerId}");
+        $this->invalidateOnboarding($onboarding->id, $newTrainerId);
+    }
+
+    public function setDueDate(OnboardingRequest $onboarding, string $dueDate, string $userId): void
+    {
+        if (in_array($onboarding->status, ['completed', 'cancelled'])) {
+            throw new InvalidStatusTransitionException(
+                "Due date cannot be set — onboarding is '{$onboarding->status}'."
+            );
+        }
+
+        $parsed = \Carbon\Carbon::parse($dueDate);
+
+        $onboarding->update(['due_date' => $parsed->toDateString()]);
+
+        try {
+            if ($onboarding->trainer_id) {
+                $this->notificationService->notify(
+                    [$onboarding->trainer_id],
+                    'onboarding_due_date_set',
+                    'Due Date Updated',
+                    "The due date for onboarding {$onboarding->request_code} has been set to {$parsed->toDateString()}.",
+                    ['type' => 'onboarding_request', 'id' => $onboarding->id]
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::error('OnboardingService setDueDate notification failed', [
+                'onboarding_id' => $onboarding->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+    }
+
+    public function listLinkedAppointments(OnboardingRequest $onboarding): Collection
+    {
+        return $onboarding->linkedAppointments()
+            ->with([
+                'appointment:id,title,appointment_type,status,scheduled_date,scheduled_start_time,scheduled_end_time,trainer_id,creator_id',
+                'appointment.trainer:id,first_name,last_name',
+                'appointment.creator:id,first_name,last_name',
+            ])
+            ->orderBy('linked_at')
+            ->get()
+            ->map(fn($link) => [
+                'id'             => $link->id,
+                'appointment_id' => $link->appointment_id,
+                'session_type'   => $link->session_type,
+                'linked_at'      => $link->linked_at,
+                'appointment'    => $link->appointment ? [
+                    'id'                   => $link->appointment->id,
+                    'title'                => $link->appointment->title,
+                    'appointment_type'     => $link->appointment->appointment_type,
+                    'status'               => $link->appointment->status,
+                    'scheduled_date'       => $link->appointment->scheduled_date,
+                    'scheduled_start_time' => $link->appointment->scheduled_start_time,
+                    'scheduled_end_time'   => $link->appointment->scheduled_end_time,
+                    'trainer'              => $link->appointment->trainer
+                        ? ['id' => $link->appointment->trainer->id, 'first_name' => $link->appointment->trainer->first_name, 'last_name' => $link->appointment->trainer->last_name]
+                        : null,
+                    'creator'              => $link->appointment->creator
+                        ? ['id' => $link->appointment->creator->id, 'first_name' => $link->appointment->creator->first_name, 'last_name' => $link->appointment->creator->last_name]
+                        : null,
+                ] : null,
+            ]);
+    }
+
+    public function getCycles(OnboardingRequest $onboarding): Collection
+    {
+        return OnboardingRequest::where('client_id', $onboarding->client_id)
+            ->with('trainer')
+            ->orderBy('cycle_number')
+            ->get()
+            ->map(fn ($ob) => [
+                'id' => $ob->id,
+                'request_code' => $ob->request_code,
+                'cycle_number' => $ob->cycle_number,
+                'status' => $ob->status,
+                'trainer_name' => $ob->trainer ? ($ob->trainer->first_name . ' ' . $ob->trainer->last_name) : null,
+                'progress_percentage' => $ob->progress_percentage,
+                'completed_at' => $ob->completed_at,
+                'created_at' => $ob->created_at,
+            ]);
     }
 
     // Company Info
@@ -216,7 +566,7 @@ class OnboardingService
 
     public function updateSystemAnalysis(OnboardingSystemAnalysis $analysis, array $data): OnboardingSystemAnalysis
     {
-        $analysis->update(array_filter($data, fn ($v) => ! is_null($v)));
+        $analysis->update(array_filter($data, fn($v) => ! is_null($v)));
         $this->invalidateOnboarding($analysis->onboarding_id, $analysis->onboarding?->trainer_id);
 
         return $analysis;
@@ -318,7 +668,7 @@ class OnboardingService
             throw new LessonLockedAfterSendException;
         }
 
-        $lesson->update(array_filter($data, fn ($v) => ! is_null($v)));
+        $lesson->update(array_filter($data, fn($v) => ! is_null($v)));
         $this->invalidateOnboarding($lesson->onboarding_id, $lesson->onboarding?->trainer_id);
 
         return $lesson->fresh();

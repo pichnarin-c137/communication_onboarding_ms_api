@@ -34,11 +34,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
                 // Handle custom application exceptions with specific HTTP status codes
                 if ($e instanceof \App\Exceptions\BaseException) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => $e->getMessage(),
-                        'request_id' => $requestId,
-                    ], $e->getHttpStatusCode());
+                    $body = $e->toArray();
+                    $body['request_id'] = $requestId;
+                    return response()->json($body, $e->getHttpStatusCode());
                 }
 
                 // Handle validation exceptions (422)

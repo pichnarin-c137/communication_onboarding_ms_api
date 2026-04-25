@@ -70,6 +70,11 @@ class Client extends Model
         return $this->hasMany(OnboardingRequest::class);
     }
 
+    public function sales(): HasMany
+    {
+        return $this->hasMany(Sale::class);
+    }
+
     public function appointments(): HasMany
     {
         return $this->hasMany(Appointment::class);

@@ -30,6 +30,8 @@ class ClientSeeder extends Seeder
 
     public function run(): void
     {
+        $saleIds = DemoUserSeeder::SALE_USER_IDS;
+
         $this->createClient(
             self::CLIENT_ALPHA_ID,
             'CLT-0001',
@@ -42,7 +44,7 @@ class ClientSeeder extends Seeder
             "104.8920684",
             ['facebook' => 'https://facebook.com/alphatech', 'linkedin' => 'https://linkedin.com/company/alphatech', 'telegram' => 'https://t.me/alphatech'],
             true,
-            DemoUserSeeder::SALE_USER_ID
+            $saleIds[0]
         );
 
         $this->createClient(
@@ -57,7 +59,7 @@ class ClientSeeder extends Seeder
             "104.9027925",
             ['facebook' => 'https://facebook.com/betalogistics', 'telegram' => 'https://t.me/betalogistics'],
             true,
-            DemoUserSeeder::SALE_USER_ID
+            $saleIds[1]
         );
 
         $this->createClient(
@@ -72,7 +74,7 @@ class ClientSeeder extends Seeder
             "104.908013",
             ['facebook' => 'https://facebook.com/gammacorp'],
             true,
-            DemoUserSeeder::SALE_USER_ID
+            $saleIds[2]
         );
 
         $this->createClient(
@@ -87,7 +89,7 @@ class ClientSeeder extends Seeder
             "104.9094879",
             ['facebook' => 'https://facebook.com/deltainnovations'],
             true,
-            DemoUserSeeder::SALE_USER_ID
+            $saleIds[3]
         );
 
         $this->createClient(
@@ -102,7 +104,7 @@ class ClientSeeder extends Seeder
             "104.9121787",
             ['facebook' => 'https://facebook.com/epsilonsystems'],
             true,
-            DemoUserSeeder::SALE_USER_ID
+            $saleIds[4]
         );
 
         $this->createClient(
@@ -117,7 +119,7 @@ class ClientSeeder extends Seeder
             "104.9246927",
             ['facebook' => 'https://facebook.com/zetasolutions'],
             true,
-            DemoUserSeeder::SALE_USER_ID
+            $saleIds[0]
         );
 
         $this->createClient(
@@ -132,7 +134,7 @@ class ClientSeeder extends Seeder
             "104.9229574",
             ['facebook' => 'https://facebook.com/etatech'],
             true,
-            DemoUserSeeder::SALE_USER_ID
+            $saleIds[1]
         );
 
         $this->createClient(
@@ -147,7 +149,7 @@ class ClientSeeder extends Seeder
             "104.8299792",
             ['facebook' => 'https://facebook.com/thetadynamics'],
             true,
-            DemoUserSeeder::SALE_USER_ID
+            $saleIds[2]
         );
 
         $this->createClient(
@@ -162,7 +164,7 @@ class ClientSeeder extends Seeder
             "104.922258",
             ['facebook' => 'https://facebook.com/iotaenterprises'],
             true,
-            DemoUserSeeder::SALE_USER_ID
+            $saleIds[3]
         );
 
         $this->createClient(
@@ -177,7 +179,7 @@ class ClientSeeder extends Seeder
             "104.9305614",
             ['facebook' => 'https://facebook.com/kappaindustries'],
             true,
-            DemoUserSeeder::SALE_USER_ID
+            $saleIds[4]
         );
 
         // Populate PostGIS location column from lat/lng
@@ -191,7 +193,7 @@ class ClientSeeder extends Seeder
               AND headquarter_longitude IS NOT NULL
         ");
 
-        $this->command->info('All 10 clients have been seeded successfully.');
+        $this->command->info('All 10 clients have been seeded successfully across 5 sale users.');
     }
 
     private function createClient(

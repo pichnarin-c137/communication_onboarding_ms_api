@@ -27,7 +27,7 @@ class AppointmentController extends Controller
     {
         $user = User::findOrFail($request->get('auth_user_id'));
         $userSettings = $this->userSettingsService->getSettings($user->id);
-        
+
         $filters = $request->only(['status', 'appointment_type', 'scheduled_date', 'client_id', 'trainer_id', 'creator_id', 'search']);
         $authRole = $request->get('auth_role');
 

@@ -15,13 +15,13 @@ class BroadcastController extends Controller
     public function auth(Request $request): JsonResponse
     {
         $request->validate([
-            'socket_id'    => ['required', 'string'],
+            'socket_id' => ['required', 'string'],
             'channel_name' => ['required', 'string'],
         ]);
 
         $channelName = $request->input('channel_name');
-        $socketId    = $request->input('socket_id');
-        $authUserId  = $request->get('auth_user_id');
+        $socketId = $request->input('socket_id');
+        $authUserId = $request->get('auth_user_id');
 
         // Authorize presence-trainers channel (any authenticated user)
         if ($channelName === 'presence-trainers') {
@@ -41,16 +41,16 @@ class BroadcastController extends Controller
         // Authorize private-notifications.{userId} channels
         if (! preg_match('/^private-notifications\.(.+)$/', $channelName, $matches)) {
             return response()->json([
-                'success'    => false,
-                'message'    => 'Channel authorization denied.',
+                'success' => false,
+                'message' => 'Channel authorization denied.',
                 'error_code' => 'BROADCAST_AUTH_FORBIDDEN',
             ], 403);
         }
 
         if ($matches[1] !== $authUserId) {
             return response()->json([
-                'success'    => false,
-                'message'    => 'You are not authorized to subscribe to this channel.',
+                'success' => false,
+                'message' => 'You are not authorized to subscribe to this channel.',
                 'error_code' => 'BROADCAST_AUTH_FORBIDDEN',
             ], 403);
         }

@@ -10,8 +10,10 @@ use App\Services\Logging\ActivityLogger;
 use App\Services\Notification\NotificationService;
 use App\Services\Notification\TelegramService;
 use App\Services\Onboarding\LessonSendService;
+use App\Services\Onboarding\OnboardingFeedbackService;
 use App\Services\Onboarding\OnboardingProgressService;
 use App\Services\Onboarding\OnboardingService;
+use App\Services\Onboarding\OnboardingSlaService;
 use App\Services\Onboarding\OnboardingTriggerService;
 use App\Services\Telegram\TelegramGroupService;
 use App\Services\Telegram\TelegramMessageTemplate;
@@ -55,6 +57,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(OnboardingProgressService::class);
         $this->app->singleton(LessonSendService::class);
         $this->app->singleton(OnboardingService::class);
+        $this->app->singleton(OnboardingFeedbackService::class);
+        $this->app->singleton(OnboardingSlaService::class);
 
         // Telegram integration layer
         $this->app->singleton(TelegramGroupService::class, fn ($app) => new TelegramGroupService(

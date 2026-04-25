@@ -27,6 +27,19 @@ class OnboardingRequest extends Model
         'status',
         'progress_percentage',
         'completed_at',
+        // Expansion columns
+        'hold_reason',
+        'hold_started_at',
+        'hold_count',
+        'revision_note',
+        'revision_requested_at',
+        'revision_requested_by_user_id',
+        'due_date',
+        'sla_breached_at',
+        'parent_onboarding_id',
+        'cycle_number',
+        'reopened_at',
+        'reopened_by_user_id',
     ];
 
     protected $casts = [
@@ -34,8 +47,18 @@ class OnboardingRequest extends Model
         'appointment_id' => 'string',
         'client_id' => 'string',
         'trainer_id' => 'string',
+        'revision_requested_by_user_id' => 'string',
+        'parent_onboarding_id' => 'string',
+        'reopened_by_user_id' => 'string',
         'progress_percentage' => 'float',
+        'hold_count' => 'integer',
+        'cycle_number' => 'integer',
         'completed_at' => 'datetime',
+        'hold_started_at' => 'datetime',
+        'revision_requested_at' => 'datetime',
+        'sla_breached_at' => 'datetime',
+        'reopened_at' => 'datetime',
+        'due_date' => 'date',
     ];
 
     public function appointment(): BelongsTo
@@ -71,5 +94,55 @@ class OnboardingRequest extends Model
     public function lessons(): HasMany
     {
         return $this->hasMany(OnboardingLesson::class, 'onboarding_id');
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(OnboardingRequest::class, 'parent_onboarding_id');
+    }
+
+    public function children(): HasMany
+    {
+        return $this->hasMany(OnboardingRequest::class, 'parent_onboarding_id');
+    }
+
+    public function linkedAppointments(): HasMany
+    {
+        return $this->hasMany(OnboardingAppointment::class, 'onboarding_id');
+    }
+
+    public function trainerAssignments(): HasMany
+    {
+        return $this->hasMany(OnboardingTrainerAssignment::class, 'onboarding_id');
+    }
+
+    public function clientFeedback(): HasOne
+    {
+        return $this->hasOne(OnboardingClientFeedback::class, 'onboarding_id');
+    }
+
+    public function feedbackToken(): HasOne
+    {
+        return $this->hasOne(OnboardingFeedbackToken::class, 'onboarding_id');
+    }
+
+    public function revisionRequestedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'revision_requested_by_user_id');
+    }
+
+    public function reopenedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reopened_by_user_id');
+    }
+
+    public function getSaleAttribute(): ?User
+    {
+        return $this->appointment?->creator;
+    }
+
+    public function getSalesAttribute()
+    {
+        return $this->client?->sales?->sortByDesc('created_at')->values() ?? collect();
     }
 }

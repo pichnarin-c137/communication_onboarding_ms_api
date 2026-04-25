@@ -18,7 +18,7 @@ class CleanupOldPingsCommand extends Command
 
         $deleted = TrainerLocationPing::where('pinged_at', '<', $cutoff)->delete();
 
-        $this->info("Deleted {$deleted} ping(s) older than {$retentionDays} days.");
+        $this->info("Deleted $deleted ping(s) older than $retentionDays days.");
 
         return self::SUCCESS;
     }

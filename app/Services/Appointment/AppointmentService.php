@@ -49,7 +49,11 @@ class AppointmentService
 
         $all = Cache::store('redis')->remember($cacheKey, $ttl, function () use ($user) {
             $role = $user->role->role ?? null;
-            $query = Appointment::with(['trainer', 'client', 'creator']);
+            $query = Appointment::with([
+                'trainer:id,first_name,last_name',
+                'client:id,company_code,company_name',
+                'creator:id,first_name,last_name',
+            ]);
 
             if ($role === 'trainer') {
                 $query->where(function ($q) use ($user) {
@@ -164,6 +168,8 @@ class AppointmentService
             return $appointment;
         });
 
+        $this->onboardingTriggerService->handleAppointmentInProgress($appointment);
+
         // Cache invalidation must run after the transaction commits so that
         // any subsequent cache-miss query sees the newly inserted row.
         $this->invalidateListsFor($creatorId, $appointment->trainer_id);
@@ -225,6 +231,8 @@ class AppointmentService
             'leave_office_lng' => $lng,
         ]);
 
+        $this->onboardingTriggerService->handleAppointmentInProgress($appt);
+
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
 
         // Sync tracking: trainer is now en_route to the client
@@ -275,6 +283,8 @@ class AppointmentService
             'start_lng' => $lng,
             'actual_start_time' => now(),
         ]);
+
+        $this->onboardingTriggerService->handleAppointmentInProgress($appt);
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
 
@@ -347,8 +357,8 @@ class AppointmentService
         // Telegram hook: notify client group when a training appointment is completed
         $this->notifyTrainingTelegramQuietly($appt, 'training_completed');
 
-        if ($appt->appointment_type === 'training' && ! $appt->is_onboarding_triggered && ! $appt->is_continued_session) {
-            $this->onboardingTriggerService->trigger($appt);
+        if ($appt->appointment_type === 'training') {
+            $this->onboardingTriggerService->handleAppointmentCompleted($appt);
         }
 
         if ($appt->appointment_type === 'demo') {
@@ -435,7 +445,7 @@ class AppointmentService
                     'meeting_link',
                     'physical_location',
                     'is_continued_session',
-                ]),
+                ]),     
                 [
                     'scheduled_date' => $newSchedule['scheduled_date'],
                     'scheduled_start_time' => $newSchedule['scheduled_start_time'],
@@ -446,6 +456,8 @@ class AppointmentService
         });
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
+
+        $this->onboardingTriggerService->handleAppointmentInProgress($newAppt);
 
         // If the appointment was active, reset the trainer's tracking state
         if ($wasActive) {

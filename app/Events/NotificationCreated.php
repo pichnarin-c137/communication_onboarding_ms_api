@@ -22,17 +22,18 @@ class NotificationCreated implements ShouldBroadcast
         if (! $this->notification->user_id) {
             return [];
         }
-        return [new PrivateChannel('notifications.' . $this->notification->user_id)];
+
+        return [new PrivateChannel('notifications.'.$this->notification->user_id)];
     }
 
     public function broadcastWith(): array
     {
         return [
-            'id'         => $this->notification->id,
-            'type'       => $this->notification->type,
-            'title'      => $this->notification->title,
-            'message'    => $this->notification->message,
-            'is_read'    => $this->notification->is_read,
+            'id' => $this->notification->id,
+            'type' => $this->notification->type,
+            'title' => $this->notification->title,
+            'message' => $this->notification->message,
+            'is_read' => $this->notification->is_read,
             'created_at' => $this->notification->created_at?->toISOString(),
         ];
     }

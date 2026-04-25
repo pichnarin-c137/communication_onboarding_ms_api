@@ -20,20 +20,24 @@ class Credential extends Model
         'password',
         'otp',
         'otp_expiry',
-        'remember_me'
+        'remember_me',
+        'reset_token',
+        'reset_token_expires_at',
     ];
 
     protected $hidden = [
         'password',
         'otp',
+        'reset_token',
     ];
 
     protected $casts = [
-        'id' => 'string',
-        'user_id' => 'string',
-        'otp_expiry' => 'datetime',
-        'password' => 'hashed',
-        'remember_me' => 'boolean'
+        'id'                     => 'string',
+        'user_id'                => 'string',
+        'otp_expiry'             => 'datetime',
+        'password'               => 'hashed',
+        'remember_me'            => 'boolean',
+        'reset_token_expires_at' => 'datetime',
     ];
 
     public $incrementing = false;
