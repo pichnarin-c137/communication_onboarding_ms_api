@@ -41,24 +41,30 @@ return Application::configure(basePath: dirname(__DIR__))
 
                 // Handle validation exceptions (422)
                 if ($e instanceof \Illuminate\Validation\ValidationException) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Validation failed',
-                        'errors' => $e->errors(),
+                    $errors = collect($e->errors())->flatten()->values()->all();
+                    $body = [
+                        'success'    => false,
+                        'message'    => count($errors) === 1 ? $errors[0] : 'Validation failed',
+                        'error_code' => 'VALIDATION_ERROR',
                         'request_id' => $requestId,
-                    ], 422);
+                    ];
+                    if (count($errors) > 1) {
+                        $body['errors'] = $errors;
+                    }
+                    return response()->json($body, 422);
                 }
 
                 // Handle model not found (404)
                 if ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
                     \Illuminate\Support\Facades\Log::warning('Resource not found', [
-                        'exception' => get_class($e),
+                        'exception'  => get_class($e),
                         'request_id' => $requestId,
                     ]);
 
                     return response()->json([
-                        'success' => false,
-                        'message' => 'Resource not found',
+                        'success'    => false,
+                        'message'    => 'Resource not found',
+                        'error_code' => 'RESOURCE_NOT_FOUND',
                         'request_id' => $requestId,
                     ], 404);
                 }
@@ -66,30 +72,32 @@ return Application::configure(basePath: dirname(__DIR__))
                 // Handle database exceptions (500)
                 if ($e instanceof \Illuminate\Database\QueryException) {
                     \Illuminate\Support\Facades\Log::error('Database error', [
-                        'message' => $e->getMessage(),
-                        'code' => $e->getCode(),
+                        'message'    => $e->getMessage(),
+                        'code'       => $e->getCode(),
                         'request_id' => $requestId,
                     ]);
 
                     return response()->json([
-                        'success' => false,
-                        'message' => 'A database error occurred',
+                        'success'    => false,
+                        'message'    => 'A database error occurred',
+                        'error_code' => 'DATABASE_ERROR',
                         'request_id' => $requestId,
                     ], 500);
                 }
 
                 // Handle all other exceptions (500)
                 \Illuminate\Support\Facades\Log::error('Unhandled exception', [
-                    'exception' => get_class($e),
-                    'message' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
+                    'exception'  => get_class($e),
+                    'message'    => $e->getMessage(),
+                    'file'       => $e->getFile(),
+                    'line'       => $e->getLine(),
                     'request_id' => $requestId,
                 ]);
 
                 $response = [
-                    'success' => false,
-                    'message' => config('app.debug') ? $e->getMessage() : 'An unexpected error occurred',
+                    'success'    => false,
+                    'message'    => config('app.debug') ? $e->getMessage() : 'An unexpected error occurred',
+                    'error_code' => 'INTERNAL_SERVER_ERROR',
                     'request_id' => $requestId,
                 ];
 
@@ -97,9 +105,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 if (config('app.debug')) {
                     $response['debug'] = [
                         'exception' => get_class($e),
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine(),
-                        'trace' => collect($e->getTrace())->take(10)->toArray(),
+                        'file'      => $e->getFile(),
+                        'line'      => $e->getLine(),
+                        'trace'     => collect($e->getTrace())->take(10)->toArray(),
                     ];
                 }
 

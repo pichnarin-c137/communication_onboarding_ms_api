@@ -47,14 +47,26 @@ abstract class BaseException extends Exception
     }
 
     /**
+     * Stable machine-readable error code. Subclasses may override.
+     * Derived automatically: strip trailing "Exception", convert PascalCase → SCREAMING_SNAKE_CASE.
+     * e.g. InvalidStatusTransitionException → INVALID_STATUS_TRANSITION
+     */
+    public function errorCode(): string
+    {
+        $base = preg_replace('/Exception$/', '', class_basename($this));
+
+        return strtoupper(preg_replace('/(?<!^)[A-Z]/', '_$0', $base));
+    }
+
+    /**
      * Convert the exception to an array for JSON response
      */
     public function toArray(): array
     {
         return [
-            'success' => false,
-            'message' => $this->getMessage(),
-            'error_code' => class_basename($this),
+            'success'    => false,
+            'message'    => $this->getMessage(),
+            'error_code' => $this->errorCode(),
         ];
     }
 

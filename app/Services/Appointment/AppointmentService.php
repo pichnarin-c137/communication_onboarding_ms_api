@@ -68,16 +68,17 @@ class AppointmentService
 
         // Apply in-memory filters on the cached collection
         $filtered = $all
-            ->when(! empty($filters['status']), fn($c) => $c->where('status', $filters['status']))
-            ->when(! empty($filters['appointment_type']), fn($c) => $c->where('appointment_type', $filters['appointment_type']))
-            ->when(! empty($filters['scheduled_date']), fn($c) => $c->filter(
-                fn($appt) => $appt->scheduled_date->toDateString() === $filters['scheduled_date']
+            ->when(! empty($filters['status']), fn ($c) => $c->where('status', $filters['status']))
+            ->when(! empty($filters['appointment_type']), fn ($c) => $c->where('appointment_type', $filters['appointment_type']))
+            ->when(! empty($filters['scheduled_date']), fn ($c) => $c->filter(
+                fn ($appt) => $appt->scheduled_date->toDateString() === $filters['scheduled_date']
             ))
-            ->when(! empty($filters['client_id']), fn($c) => $c->where('client_id', $filters['client_id']))
-            ->when(! empty($filters['trainer_id']), fn($c) => $c->where('trainer_id', $filters['trainer_id']))
-            ->when(! empty($filters['creator_id']), fn($c) => $c->where('creator_id', $filters['creator_id']))
+            ->when(! empty($filters['client_id']), fn ($c) => $c->where('client_id', $filters['client_id']))
+            ->when(! empty($filters['trainer_id']), fn ($c) => $c->where('trainer_id', $filters['trainer_id']))
+            ->when(! empty($filters['creator_id']), fn ($c) => $c->where('creator_id', $filters['creator_id']))
             ->when(! empty($filters['search']), function ($c) use ($filters) {
                 $search = strtolower($filters['search']);
+
                 return $c->filter(function ($appt) use ($search) {
                     return str_contains(strtolower($appt->title), $search)
                         || str_contains(strtolower($appt->client?->company_name ?? ''), $search)
@@ -211,7 +212,7 @@ class AppointmentService
             );
         }
 
-        $appt->update(array_filter($data, fn($v) => ! is_null($v)));
+        $appt->update(array_filter($data, fn ($v) => ! is_null($v)));
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $oldTrainerId, $data['trainer_id'] ?? null);
 
@@ -266,7 +267,7 @@ class AppointmentService
         // leave_office — once a trainer is physically en route, the time restriction is moot.
         if ($appt->status !== 'leave_office') {
             $scheduledStart = \Carbon\Carbon::parse(
-                $appt->scheduled_date->toDateString() . ' ' . $appt->scheduled_start_time
+                $appt->scheduled_date->toDateString().' '.$appt->scheduled_start_time
             );
 
             if (now()->lt($scheduledStart->subMinutes(30))) {
@@ -391,8 +392,8 @@ class AppointmentService
         }
 
         $notifyIds = array_values(array_filter(array_unique([
-            !empty($appt->creator_id) && $appt->creator_id !== $userId ? $appt->creator_id : null,
-            !empty($appt->trainer_id) && $appt->trainer_id !== $userId ? $appt->trainer_id : null,
+            ! empty($appt->creator_id) && $appt->creator_id !== $userId ? $appt->creator_id : null,
+            ! empty($appt->trainer_id) && $appt->trainer_id !== $userId ? $appt->trainer_id : null,
         ])));
         if ($notifyIds) {
             $this->notifyQuietly(
@@ -445,7 +446,7 @@ class AppointmentService
                     'meeting_link',
                     'physical_location',
                     'is_continued_session',
-                ]),     
+                ]),
                 [
                     'scheduled_date' => $newSchedule['scheduled_date'],
                     'scheduled_start_time' => $newSchedule['scheduled_start_time'],
@@ -543,7 +544,7 @@ class AppointmentService
         $status = $statusJson ? json_decode($statusJson, true) : [];
 
         $hasGps = $pos && $pos[0];
-        $trainerName = trim($trainer->first_name . ' ' . $trainer->last_name);
+        $trainerName = trim($trainer->first_name.' '.$trainer->last_name);
         $lat = $hasGps ? (float) $pos[0][1] : null;
         $lng = $hasGps ? (float) $pos[0][0] : null;
 
@@ -671,11 +672,11 @@ class AppointmentService
     private function generateAppointmentCode(string $type): string
     {
         $prefix = $type === 'demo' ? 'DEMO' : 'TRN';
-        $date   = now()->format('Ymd');
+        $date = now()->format('Ymd');
 
         for ($i = 0; $i < 10; $i++) {
             $random = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 5));
-            $code   = "{$prefix}-{$date}-{$random}";
+            $code = "{$prefix}-{$date}-{$random}";
 
             if (! Appointment::where('appointment_code', $code)->exists()) {
                 return $code;
@@ -717,27 +718,27 @@ class AppointmentService
                 return;
             }
 
-            $clientName  = $appointment->client?->company_name ?? 'Client';
-            $date        = $appointment->scheduled_date->format('d M Y');
-            $time        = $appointment->scheduled_start_time;
+            $clientName = $appointment->client?->company_name ?? 'Client';
+            $date = $appointment->scheduled_date->format('d M Y');
+            $time = $appointment->scheduled_start_time;
             $trainerName = $appointment->trainer?->name ?? 'Trainer';
 
             $variables = match ($messageType) {
-                'training_scheduled'  => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'trainer_name' => $trainerName],
-                'training_completed'  => ['client_name' => $clientName, 'date' => $date],
-                'training_started'    => ['client_name' => $clientName, 'date' => $date, 'time' => $time],
+                'training_scheduled' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'trainer_name' => $trainerName],
+                'training_completed' => ['client_name' => $clientName, 'date' => $date],
+                'training_started' => ['client_name' => $clientName, 'date' => $date, 'time' => $time],
                 'training_on_the_way' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'trainer_name' => $trainerName],
                 'training_rescheduled' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'reason' => $appointment->reschedule_reason ?? 'No reason provided'],
-                'training_cancelled'  => ['client_name' => $clientName, 'date' => $date, 'reason' => $appointment->cancellation_reason ?? 'No reason provided'],
-                default               => [],
+                'training_cancelled' => ['client_name' => $clientName, 'date' => $date, 'reason' => $appointment->cancellation_reason ?? 'No reason provided'],
+                default => [],
             };
 
             $this->telegramGroupService->notifyClient($clientId, $messageType, $variables);
         } catch (\Throwable $e) {
             Log::error('AppointmentService Telegram notification failed', [
                 'appointment_id' => $appointment->id,
-                'message_type'   => $messageType,
-                'error'          => $e->getMessage(),
+                'message_type' => $messageType,
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -754,13 +755,13 @@ class AppointmentService
         }
 
         $active = Appointment::where('trainer_id', $trainerId)
-            ->when($excludeAppointmentId, fn($q) => $q->where('id', '!=', $excludeAppointmentId))
+            ->when($excludeAppointmentId, fn ($q) => $q->where('id', '!=', $excludeAppointmentId))
             ->whereIn('status', ['leave_office', 'in_progress'])
             ->first();
 
         if ($active) {
             throw new OneAppointmentAtATimeException(
-                "Finish the current appointment '{$active->title}' before starting a new one.",
+                "Finish the current appointment '{$active->appointment_code}' before starting a new one.",
                 context: [
                     'trainer_id' => $trainerId,
                     'active_appointment_id' => $active->id,
@@ -829,7 +830,7 @@ class AppointmentService
     {
         $cloudinaryData = $this->cloudinaryService->upload($proof, $category);
 
-        if (!$cloudinaryData) {
+        if (! $cloudinaryData) {
             throw new \RuntimeException('Failed to upload proof to Cloudinary. Ensure valid Base64 string with Data URI prefix (e.g. data:image/png;base64,...)');
         }
 

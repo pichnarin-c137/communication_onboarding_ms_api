@@ -60,8 +60,22 @@
             <div class="state-notice">
                 <div class="icon">&#10004;&#65039;</div>
                 <h2>Password Reset!</h2>
-                <p>Your password has been updated. You can now log in with your new password.</p>
+                <p>Your password has been updated. Redirecting to login in <strong id="countdown">3</strong>s…</p>
             </div>
+            <script>
+                (function () {
+                    var seconds = 3;
+                    var el = document.getElementById('countdown');
+                    var interval = setInterval(function () {
+                        seconds--;
+                        if (el) el.textContent = seconds;
+                        if (seconds <= 0) {
+                            clearInterval(interval);
+                            window.location.href = '{{ config('app.frontend_url') }}/login';
+                        }
+                    }, 1000);
+                })();
+            </script>
 
         @elseif($state === 'expired')
             <div class="state-notice">

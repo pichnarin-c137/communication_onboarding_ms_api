@@ -10,6 +10,7 @@ use App\Exceptions\MailDeliveryException;
 use App\Exceptions\OtpExpiredException;
 use App\Exceptions\OtpRateLimitException;
 use App\Exceptions\TokenExpiredException;
+use App\Exceptions\WrongEmailRegexFormat;
 use App\Mail\ForgotPasswordMail;
 use App\Models\Credential;
 use App\Models\User;
@@ -29,6 +30,7 @@ class AuthService
     /**
      * Step 1: Authenticate user with username/email and password
      * Returns credential if successful, triggers OTP send
+     *
      * @throws AccountSuspendedException
      * @throws InvalidCredentialsException
      * @throws OtpRateLimitException
@@ -73,6 +75,7 @@ class AuthService
 
     /**
      * Step 2: Verify OTP and issue tokens
+     *
      * @throws InvalidOtpException
      */
     public function verifyOtpAndIssueTokens(string $identifier, string $otp, ?bool $rememberme = null): array
@@ -138,10 +141,15 @@ class AuthService
     /**
      * Step 1: Generate a reset token and email a reset link.
      * Always returns silently when the email is not found (prevent enumeration).
+     *
      * @throws RandomException
      */
     public function forgotPassword(string $email): void
     {
+        if (! preg_match('/^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,}$/', $email)) {
+            throw new WrongEmailRegexFormat('The provided email does not match the required format.');
+        }
+
         $credential = Credential::where('email', $email)->first();
 
         if (! $credential) {
@@ -205,6 +213,8 @@ class AuthService
         }
 
         $credential->update(['password' => $newPassword]);
+
+        $this->jwtService->revokeAllUserTokens($userId);
     }
 
     /**

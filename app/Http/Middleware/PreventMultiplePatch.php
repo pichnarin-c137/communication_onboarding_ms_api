@@ -17,12 +17,12 @@ class PreventMultiplePatch
 
             // json()->all() returns a numerically-indexed array when the root is a JSON array
             if (array_is_list($body) && count($body) > 0) {
-                throw new MultiplePatchException();
+                throw new MultiplePatchException;
             }
 
             // Prevent duplicate concurrent PATCH requests (same user + URL + body)
             $userId = $request->get('auth_user_id', $request->ip());
-            $fingerprint = hash('sha256', $userId . '|' . $request->fullUrl() . '|' . json_encode($body));
+            $fingerprint = hash('sha256', $userId.'|'.$request->fullUrl().'|'.json_encode($body));
             $cacheKey = "patch_lock:{$fingerprint}";
 
             if (Cache::has($cacheKey)) {
@@ -30,6 +30,15 @@ class PreventMultiplePatch
             }
 
             Cache::put($cacheKey, true, 5); // 5-second lock
+
+            $response = $next($request);
+
+            // Release lock on client errors so the user can correct and retry immediately
+            if ($response->getStatusCode() >= 400 && $response->getStatusCode() < 500) {
+                Cache::forget($cacheKey);
+            }
+
+            return $response;
         }
 
         return $next($request);
