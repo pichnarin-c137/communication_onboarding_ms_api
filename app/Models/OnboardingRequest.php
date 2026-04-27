@@ -32,8 +32,6 @@ class OnboardingRequest extends Model
         'hold_started_at',
         'hold_count',
         'revision_note',
-        'revision_requested_at',
-        'revision_requested_by_user_id',
         'due_date',
         'sla_breached_at',
         'parent_onboarding_id',
@@ -47,7 +45,6 @@ class OnboardingRequest extends Model
         'appointment_id' => 'string',
         'client_id' => 'string',
         'trainer_id' => 'string',
-        'revision_requested_by_user_id' => 'string',
         'parent_onboarding_id' => 'string',
         'reopened_by_user_id' => 'string',
         'progress_percentage' => 'float',
@@ -55,7 +52,6 @@ class OnboardingRequest extends Model
         'cycle_number' => 'integer',
         'completed_at' => 'datetime',
         'hold_started_at' => 'datetime',
-        'revision_requested_at' => 'datetime',
         'sla_breached_at' => 'datetime',
         'reopened_at' => 'datetime',
         'due_date' => 'date',
@@ -126,9 +122,9 @@ class OnboardingRequest extends Model
         return $this->hasOne(OnboardingFeedbackToken::class, 'onboarding_id');
     }
 
-    public function revisionRequestedBy(): BelongsTo
+    public function revisionHistories(): HasMany
     {
-        return $this->belongsTo(User::class, 'revision_requested_by_user_id');
+        return $this->hasMany(OnboardingRevisionHistory::class, 'onboarding_id');
     }
 
     public function reopenedBy(): BelongsTo

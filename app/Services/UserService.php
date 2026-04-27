@@ -398,7 +398,8 @@ class UserService
             'email' => $user->credential->email,
             'username' => $user->credential->username,
             'phone_number' => $user->credential->phone_number,
-            'created_at' => $user->created_at->toIso8601String(),
+            'created_at' => $user->created_at,
+            'updated_at' => $user->updated_at->max($user->credential->updated_at),
         ];
 
         // Add personal information if exists

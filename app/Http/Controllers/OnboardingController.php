@@ -22,7 +22,15 @@ class OnboardingController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = User::findOrFail($request->get('auth_user_id'));
-        $filters = $request->only(['status']);
+        $filters = $request->only(['status', 'search', 'date_from', 'date_to', 'trainer_id']);
+        $authRole = $request->get('auth_role');
+
+        if ($authRole === 'trainer') {
+            $filters['trainer_id'] = $request->get('auth_user_id');
+        } elseif ($authRole === 'sale') {
+            $filters['trainer_id'] = $request->input('trainer_id');
+        }
+
         $perPage = max(1, min(100, (int) $request->input('per_page', 15)));
         $page = max(1, (int) $request->input('page', 1));
 
@@ -162,6 +170,39 @@ class OnboardingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Revision acknowledged.',
+        ]);
+    }
+
+    public function revisionHistory(string $id): JsonResponse
+    {
+        $history = \App\Models\OnboardingRevisionHistory::with([
+            'requestedBy:id,first_name,last_name',
+            'acknowledgedBy:id,first_name,last_name',
+        ])
+            ->where('onboarding_id', $id)
+            ->orderBy('requested_at')
+            ->get()
+            ->map(fn($r) => [
+                'id'               => $r->id,
+                'note'             => $r->note,
+                'requested_at'     => $r->requested_at,
+                'created_at'       => $r->requested_at,
+                'requested_by'     => $r->requestedBy ? [
+                    'id'         => $r->requestedBy->id,
+                    'first_name' => $r->requestedBy->first_name,
+                    'last_name'  => $r->requestedBy->last_name,
+                ] : null,
+                'acknowledged_at'  => $r->acknowledged_at,
+                'acknowledged_by'  => $r->acknowledgedBy ? [
+                    'id'         => $r->acknowledgedBy->id,
+                    'first_name' => $r->acknowledgedBy->first_name,
+                    'last_name'  => $r->acknowledgedBy->last_name,
+                ] : null,
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $history,
         ]);
     }
 

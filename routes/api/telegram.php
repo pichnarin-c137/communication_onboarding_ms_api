@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 
 // Authenticated Telegram management (sale + admin only)
 Route::middleware(['jwt.auth', 'throttle:api', 'role:sale,admin'])->prefix('telegram')->group(function () {
+    Route::get('/setup-token', [TelegramSetupController::class, 'getOrCreateToken'])->name('telegram.setup-token.get');
     Route::post('/setup-token', [TelegramSetupController::class, 'generateToken'])->name('telegram.setup-token');
 
     Route::get('/groups', [TelegramGroupController::class, 'index'])->name('telegram.groups.index');

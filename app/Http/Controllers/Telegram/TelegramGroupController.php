@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Telegram;
 
+use App\Exceptions\Business\TelegramSetupException;
 use App\Http\Controllers\Controller;
 use App\Models\TelegramGroup;
 use App\Services\Telegram\TelegramGroupService;
@@ -22,7 +23,7 @@ class TelegramGroupController extends Controller
     public function index(Request $request): JsonResponse
     {
         $perPage = (int) min(max($request->query('per_page', 15), 1), 100);
-        $page    = (int) max($request->query('page', 1), 1);
+        $page = (int) max($request->query('page', 1), 1);
 
         $query = TelegramGroup::with('client')
             ->when($request->query('client_id'), fn ($q, $clientId) => $q->where('client_id', $clientId))
@@ -31,28 +32,28 @@ class TelegramGroupController extends Controller
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
         $data = $paginator->getCollection()->map(fn (TelegramGroup $group) => [
-            'id'               => $group->id,
-            'client_id'        => $group->client_id,
-            'client_name'      => $group->client?->company_name,
-            'group_name'       => $group->group_name,
-            'chat_id'          => $group->chat_id,
-            'bot_status'       => $group->bot_status,
-            'language'         => $group->language,
-            'connected_at'     => $group->connected_at?->toDateTimeString(),
-            'disconnected_at'  => $group->disconnected_at?->toDateTimeString(),
+            'id' => $group->id,
+            'client_id' => $group->client_id,
+            'client_name' => $group->client?->company_name,
+            'group_name' => $group->group_name,
+            'chat_id' => $group->bot_status === 'pending' ? null : $group->chat_id,
+            'bot_status' => $group->bot_status,
+            'language' => $group->language,
+            'connected_at' => $group->connected_at?->toDateTimeString(),
+            'disconnected_at' => $group->disconnected_at?->toDateTimeString(),
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Telegram groups retrieved successfully.',
-            'data'    => $data,
-            'meta'    => [
-                'total'        => $paginator->total(),
-                'per_page'     => $paginator->perPage(),
+            'data' => $data,
+            'meta' => [
+                'total' => $paginator->total(),
+                'per_page' => $paginator->perPage(),
                 'current_page' => $paginator->currentPage(),
-                'last_page'    => $paginator->lastPage(),
-                'from'         => $paginator->firstItem() ?? 0,
-                'to'           => $paginator->lastItem() ?? 0,
+                'last_page' => $paginator->lastPage(),
+                'from' => $paginator->firstItem() ?? 0,
+                'to' => $paginator->lastItem() ?? 0,
             ],
         ]);
     }
@@ -71,24 +72,24 @@ class TelegramGroupController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Telegram group retrieved successfully.',
-            'data'    => [
-                'id'               => $group->id,
-                'client_id'        => $group->client_id,
-                'client_name'      => $group->client?->company_name,
-                'group_name'       => $group->group_name,
-                'chat_id'          => $group->chat_id,
-                'bot_status'       => $group->bot_status,
-                'language'         => $group->language,
-                'connected_at'     => $group->connected_at?->toDateTimeString(),
-                'disconnected_at'  => $group->disconnected_at?->toDateTimeString(),
-                'reconnected_at'   => $group->reconnected_at?->toDateTimeString(),
-                'recent_messages'  => $group->messages->map(fn ($msg) => [
-                    'id'           => $msg->id,
-                    'content'      => $msg->message_body,
+            'data' => [
+                'id' => $group->id,
+                'client_id' => $group->client_id,
+                'client_name' => $group->client?->company_name,
+                'group_name' => $group->group_name,
+                'chat_id' => $group->bot_status === 'pending' ? null : $group->chat_id,
+                'bot_status' => $group->bot_status,
+                'language' => $group->language,
+                'connected_at' => $group->connected_at?->toDateTimeString(),
+                'disconnected_at' => $group->disconnected_at?->toDateTimeString(),
+                'reconnected_at' => $group->reconnected_at?->toDateTimeString(),
+                'recent_messages' => $group->messages->map(fn ($msg) => [
+                    'id' => $msg->id,
+                    'content' => $msg->message_body,
                     'message_type' => $msg->message_type,
-                    'status'       => $msg->status,
-                    'language'     => $msg->language,
-                    'sent_at'      => $msg->sent_at?->toDateTimeString(),
+                    'status' => $msg->status,
+                    'language' => $msg->language,
+                    'sent_at' => $msg->sent_at?->toDateTimeString(),
                 ]),
             ],
         ]);
@@ -106,11 +107,11 @@ class TelegramGroupController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Telegram group disconnected successfully.',
-            'data'    => [
-                'id'              => $group->id,
-                'bot_status'      => $group->bot_status,
+            'data' => [
+                'id' => $group->id,
+                'bot_status' => $group->bot_status,
                 'disconnected_at' => $group->disconnected_at?->toDateTimeString(),
-                'reconnected_at'  => $group->reconnected_at?->toDateTimeString(),
+                'reconnected_at' => $group->reconnected_at?->toDateTimeString(),
             ],
         ]);
     }
@@ -122,11 +123,11 @@ class TelegramGroupController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Telegram group reconnected successfully.',
-            'data'    => [
-                'id'              => $group->id,
-                'bot_status'      => $group->bot_status,
+            'data' => [
+                'id' => $group->id,
+                'bot_status' => $group->bot_status,
                 'disconnected_at' => $group->disconnected_at?->toDateTimeString(),
-                'reconnected_at'  => $group->reconnected_at?->toDateTimeString(),
+                'reconnected_at' => $group->reconnected_at?->toDateTimeString(),
             ],
         ]);
     }
@@ -147,8 +148,8 @@ class TelegramGroupController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Telegram group language updated successfully.',
-            'data'    => [
-                'id'       => $group->id,
+            'data' => [
+                'id' => $group->id,
                 'language' => $group->language,
             ],
         ]);
@@ -158,6 +159,7 @@ class TelegramGroupController extends Controller
      * POST /api/v1/telegram/groups/{id}/test-message
      *
      * Dispatch a test message to a connected group.
+     * @throws TelegramSetupException
      */
     public function testMessage(string $id): JsonResponse
     {
@@ -166,7 +168,7 @@ class TelegramGroupController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Test message dispatched successfully.',
-            'data'    => null,
+            'data' => null,
         ]);
     }
 }

@@ -49,18 +49,18 @@ return [
     | Telegram Integration
     |--------------------------------------------------------------------------
     */
-    'telegram_setup_token_ttl'      => env('COMS_TELEGRAM_SETUP_TOKEN_TTL', 3600),
-    'telegram_message_retry_limit'  => env('COMS_TELEGRAM_MESSAGE_RETRY_LIMIT', 3),
-    'telegram_webhook_secret'       => env('TELEGRAM_WEBHOOK_SECRET', ''),
-    'telegram_default_language'     => env('COMS_TELEGRAM_DEFAULT_LANGUAGE', 'en'),
-    'telegram_supported_languages'  => ['en', 'km'],
+    'telegram_setup_token_ttl' => env('COMS_TELEGRAM_SETUP_TOKEN_TTL', 3600),
+    'telegram_message_retry_limit' => env('COMS_TELEGRAM_MESSAGE_RETRY_LIMIT', 3),
+    'telegram_webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET', ''),
+    'telegram_default_language' => env('COMS_TELEGRAM_DEFAULT_LANGUAGE', 'en'),
+    'telegram_supported_languages' => ['en', 'km'],
 
     /*
     |--------------------------------------------------------------------------
     | Playlist Management
     |--------------------------------------------------------------------------
     */
-    'playlist_list_ttl'   => env('COMS_PLAYLIST_LIST_TTL', 300),
+    'playlist_list_ttl' => env('COMS_PLAYLIST_LIST_TTL', 300),
     'telegram_send_queue' => env('COMS_TELEGRAM_SEND_QUEUE', 'high'),
 
     /*
@@ -77,6 +77,7 @@ return [
     */
     'tracking' => [
         'ping_interval_seconds' => env('COMS_TRACKING_PING_INTERVAL', 30),
+        'idle_ping_interval_seconds' => env('COMS_TRACKING_IDLE_PING_INTERVAL', 300),
         'max_accuracy_meters' => env('COMS_TRACKING_MAX_ACCURACY', 100),
         'geofence_accuracy_meters' => env('COMS_TRACKING_GEOFENCE_ACCURACY', 50),
         'geofence_radius_meters' => env('COMS_TRACKING_GEOFENCE_RADIUS', 200),
@@ -103,8 +104,8 @@ return [
     'business' => [
         'business_type_list_ttl' => env('COMS_BUSINESS_TYPE_LIST_TTL', 600),   // 10 min
         'business_type_show_ttl' => env('COMS_BUSINESS_TYPE_SHOW_TTL', 1800),  // 30 min
-        'company_list_ttl'       => env('COMS_COMPANY_LIST_TTL', 300),         // 5 min
-        'company_show_ttl'       => env('COMS_COMPANY_SHOW_TTL', 600),         // 10 min
+        'company_list_ttl' => env('COMS_COMPANY_LIST_TTL', 300),         // 5 min
+        'company_show_ttl' => env('COMS_COMPANY_SHOW_TTL', 600),         // 10 min
     ],
 
     'document_extract_rate_limit' => env('COMS_DOCUMENT_EXTRACT_RATE_LIMIT', 10),
@@ -117,20 +118,20 @@ return [
     'user_settings' => [
         'cache_ttl' => env('COMS_USER_SETTINGS_CACHE_TTL', 600),
         'defaults' => [
-            'in_app_notifications'  => true,
+            'in_app_notifications' => true,
             'telegram_notifications' => true,
-            'language'              => 'en',
-            'timezone'              => 'Asia/Phnom_Penh',
-            'items_per_page'        => 15,
-            'theme'                 => 'light',
-            'quiet_hours_enabled'   => false,
-            'quiet_hours_start'     => '22:00',
-            'quiet_hours_end'       => '07:00',
+            'language' => 'en',
+            'timezone' => 'Asia/Phnom_Penh',
+            'items_per_page' => 15,
+            'theme' => 'light',
+            'quiet_hours_enabled' => false,
+            'quiet_hours_start' => '22:00',
+            'quiet_hours_end' => '07:00',
         ],
         'supported_languages' => ['en', 'km'],
-        'supported_themes'    => ['light', 'dark'],
-        'items_per_page_min'  => 5,
-        'items_per_page_max'  => 100,
+        'supported_themes' => ['light', 'dark'],
+        'items_per_page_min' => 5,
+        'items_per_page_max' => 100,
     ],
 
 ];

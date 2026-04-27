@@ -40,7 +40,7 @@ services:
       timeout: 5s
       retries: 5
 
-  #  Laravel App (PHP-FPM) 
+  #  Laravel App (PHP-FPM)
   app:
     build:
       context: .
@@ -69,6 +69,9 @@ services:
       - .:/var/www/html
       - ./storage/keys:/var/www/html/storage/keys
       - ./docker/php/conf.d/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini:ro
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     networks:
       - coms_network
 
@@ -117,6 +120,9 @@ services:
       - ./storage/keys:/var/www/html/storage/keys
     command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     networks:
       - coms_network
 

@@ -38,8 +38,37 @@ class TelegramSetupController extends Controller
                 'token' => $token->token,
                 'expires_at' => $token->expires_at->format('Y-m-d H:i:s'),
                 'client_id' => $token->client_id,
+                'created' => $token->wasRecentlyCreated,
             ],
         ], 201);
+    }
+
+    /**
+     * GET /api/v1/telegram/setup-token
+     *
+     * Return an active setup token for a client, or create one if none exists.
+     */
+    public function getOrCreateToken(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'client_id' => ['required', 'uuid', 'exists:clients,id'],
+        ]);
+
+        $token = $this->groupService->getOrCreateToken(
+            $validated['client_id'],
+            $request->auth_user_id
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Setup token retrieved successfully.',
+            'data' => [
+                'token' => $token->token,
+                'expires_at' => $token->expires_at->format('Y-m-d H:i:s'),
+                'client_id' => $token->client_id,
+                'created' => $token->wasRecentlyCreated,
+            ],
+        ]);
     }
 
     /**

@@ -62,7 +62,7 @@ class OnboardingFeedbackController extends Controller
     public function show(string $id): JsonResponse
     {
         $onboarding = OnboardingRequest::findOrFail($id);
-        $feedback = $this->feedbackService->getFeedback($onboarding->load('clientFeedback'));
+        $feedback = $this->feedbackService->getFeedback($onboarding->load('clientFeedback', 'feedbackToken'));
 
         return response()->json([
             'success' => true,

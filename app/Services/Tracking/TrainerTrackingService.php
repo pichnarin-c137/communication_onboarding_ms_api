@@ -38,11 +38,15 @@ class TrainerTrackingService
         return "trainer:{$trainerId}:eta";
     }
 
+    private const ACTIVE_TRACKING_STATUSES = ['en_route', 'arrived', 'in_session'];
+
     /**
      * Process an incoming GPS ping from a trainer's device.
+     * Returns true when the trainer is in an active tracking state (trail written, geofence checked, broadcast fired).
+     * Returns false when idle (at_office/completed) — only the Redis position is refreshed.
      * @throws LocationPingRejectedException
      */
-    public function processPing(string $trainerId, array $data): void
+    public function processPing(string $trainerId, array $data): bool
     {
         $lat = (float) $data['latitude'];
         $lng = (float) $data['longitude'];
@@ -86,8 +90,13 @@ class TrainerTrackingService
             );
         }
 
-        // Store current position in Redis GEO
+        // Always refresh the Redis GEO position (lightweight — keeps the live map current)
         Redis::geoadd(self::KEY_LOCATIONS, $lng, $lat, $trainerId);
+
+        // Skip trail, geofence, and broadcast when trainer is not actively moving
+        if (! $this->isTrackingActive($trainerId)) {
+            return false;
+        }
 
         // Append breadcrumb to trail list
         $breadcrumb = json_encode([
@@ -118,6 +127,19 @@ class TrainerTrackingService
                 'error' => $e->getMessage(),
             ]);
         }
+
+        return true;
+    }
+
+    /**
+     * Returns true when the trainer is in a state where GPS trail and broadcasts are meaningful.
+     */
+    public function isTrackingActive(string $trainerId): bool
+    {
+        $cached = Redis::get(self::statusKey($trainerId));
+        $status = $cached ? (json_decode($cached, true)['status'] ?? 'at_office') : 'at_office';
+
+        return in_array($status, self::ACTIVE_TRACKING_STATUSES);
     }
 
     /**
