@@ -121,8 +121,28 @@ class OnboardingFeedbackService
         return $feedback;
     }
 
-    public function getFeedback(OnboardingRequest $onboarding): ?OnboardingClientFeedback
+    public function getFeedback(OnboardingRequest $onboarding): array
     {
-        return $onboarding->clientFeedback;
+        $feedback = $onboarding->clientFeedback;
+
+        if ($feedback) {
+            return [
+                'status'       => 'submitted',
+                'rating'       => $feedback->rating,
+                'comment'      => $feedback->comment,
+                'submitted_at' => $feedback->submitted_at,
+            ];
+        }
+
+        $token = $onboarding->feedbackToken;
+
+        if ($token && $token->used_at === null && $token->expires_at->isFuture()) {
+            return [
+                'status'  => 'sent',
+                'sent_at' => $token->created_at,
+            ];
+        }
+
+        return ['status' => 'not_requested'];
     }
 }

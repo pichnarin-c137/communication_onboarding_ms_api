@@ -3,40 +3,115 @@
 namespace App\Services\Telegram;
 
 use App\Exceptions\Business\TelegramSetupException;
+use App\Models\Client;
 use App\Models\TelegramGroup;
 use App\Models\TelegramMessage;
 use App\Models\TelegramSetupToken;
-use App\Services\Notification\TelegramService;
+use App\Services\UserSettingsService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class TelegramGroupService
 {
     public function __construct(
-        private TelegramService $telegramService,
         private TelegramMessageTemplate $template,
-        private \App\Services\UserSettingsService $userSettingsService,
+        private UserSettingsService $userSettingsService,
     ) {}
 
     // Token management
+    /**
+     * Return an active setup token for a client, or create one if it does not exist.
+     */
+    public function getOrCreateToken(string $clientId, string $createdBy): TelegramSetupToken
+    {
+        return $this->resolveSetupToken($clientId, $createdBy);
+    }
 
     /**
      * Generate a new setup token for a client. Invalidates any existing active tokens.
+     *
+     * @throws TelegramSetupException
      */
     public function generateToken(string $clientId, string $createdBy): TelegramSetupToken
     {
-        // Invalidate existing unused, unexpired tokens for this client
-        TelegramSetupToken::where('client_id', $clientId)
+        return $this->resolveSetupToken($clientId, $createdBy);
+    }
+
+    private function resolveSetupToken(string $clientId, string $createdBy): TelegramSetupToken
+    {
+        if ($this->hasLockedGroupForClient($clientId)) {
+            throw new TelegramSetupException('A Telegram group already exists for this client.', 422);
+        }
+
+        $pendingGroup = $this->findPendingGroupForClient($clientId);
+
+        $activeToken = TelegramSetupToken::where('client_id', $clientId)
             ->whereNull('used_at')
             ->where('expires_at', '>', now())
-            ->update(['used_at' => now()]);
+            ->orderByDesc('created_at')
+            ->first();
 
-        return TelegramSetupToken::create([
-            'client_id'  => $clientId,
+        if ($activeToken) {
+            $this->upsertPendingGroup($clientId, $createdBy, $activeToken->id, $pendingGroup);
+
+            return $activeToken;
+        }
+
+        $tokenRecord = TelegramSetupToken::create([
+            'client_id' => $clientId,
             'created_by' => $createdBy,
-            'token'      => Str::random(32),
+            'token' => Str::random(32),
             'expires_at' => now()->addSeconds((int) config('coms.telegram_setup_token_ttl', 3600)),
         ]);
+
+        $this->upsertPendingGroup($clientId, $createdBy, $tokenRecord->id, $pendingGroup);
+
+        return $tokenRecord;
+    }
+
+    private function hasLockedGroupForClient(string $clientId): bool
+    {
+        return TelegramGroup::where('client_id', $clientId)
+            ->whereIn('bot_status', ['connected', 'reconnected', 'removed'])
+            ->exists();
+    }
+
+    private function findPendingGroupForClient(string $clientId): ?TelegramGroup
+    {
+        return TelegramGroup::where('client_id', $clientId)
+            ->where('bot_status', 'pending')
+            ->first();
+    }
+
+    private function upsertPendingGroup(string $clientId, string $createdBy, string $tokenId, ?TelegramGroup $pendingGroup = null): void
+    {
+        $data = [
+            'chat_id' => 'pending:'.$tokenId,
+            'group_name' => $this->resolveClientName($clientId),
+            'language' => config('coms.telegram_default_language', 'en'),
+            'connected_by' => $createdBy,
+            'connected_at' => null,
+            'disconnected_at' => null,
+            'reconnected_at' => null,
+        ];
+
+        if ($pendingGroup) {
+            $pendingGroup->update($data);
+
+
+            return;
+        }
+
+        TelegramGroup::create([
+            'client_id' => $clientId,
+            'bot_status' => 'pending',
+            ...$data,
+        ]);
+    }
+
+    private function resolveClientName(string $clientId): string
+    {
+        return Client::where('id', $clientId)->value('company_name') ?? 'Client';
     }
 
     // Group registration
@@ -73,12 +148,30 @@ class TelegramGroupService
 
         $tokenRecord->update(['used_at' => now()]);
 
+        $pendingGroup = TelegramGroup::where('client_id', $tokenRecord->client_id)
+            ->where('bot_status', 'pending')
+            ->first();
+
+        if ($pendingGroup) {
+            $pendingGroup->update([
+                'chat_id' => $chatId,
+                'group_name' => $groupName,
+                'bot_status' => 'connected',
+                'connected_by' => $tokenRecord->created_by,
+                'connected_at' => now(),
+                'disconnected_at' => null,
+                'reconnected_at' => null,
+            ]);
+
+            return $pendingGroup->fresh();
+        }
+
         return TelegramGroup::create([
-            'client_id'    => $tokenRecord->client_id,
-            'chat_id'      => $chatId,
-            'group_name'   => $groupName,
-            'bot_status'   => 'connected',
-            'language'     => config('coms.telegram_default_language', 'en'),
+            'client_id' => $tokenRecord->client_id,
+            'chat_id' => $chatId,
+            'group_name' => $groupName,
+            'bot_status' => 'connected',
+            'language' => config('coms.telegram_default_language', 'en'),
             'connected_by' => $tokenRecord->created_by,
             'connected_at' => now(),
         ]);
@@ -94,8 +187,8 @@ class TelegramGroupService
         $group = TelegramGroup::findOrFail($groupId);
 
         $group->update([
-            'bot_status'       => 'removed',
-            'disconnected_at'  => now(),
+            'bot_status' => 'removed',
+            'disconnected_at' => now(),
         ]);
 
         return $group->fresh();
@@ -106,8 +199,8 @@ class TelegramGroupService
         $group = TelegramGroup::findOrFail($groupId);
 
         $group->update([
-            'bot_status'       => 'reconnected',
-            'reconnected_at'  => now(),
+            'bot_status' => 'reconnected',
+            'reconnected_at' => now(),
         ]);
 
         return $group->fresh();
@@ -122,7 +215,7 @@ class TelegramGroupService
 
         if (! in_array($language, $supported, true)) {
             throw new \InvalidArgumentException(
-                "Language '{$language}' is not supported. Supported: " . implode(', ', $supported)
+                "Language '{$language}' is not supported. Supported: ".implode(', ', $supported)
             );
         }
 
@@ -147,7 +240,7 @@ class TelegramGroupService
         }
 
         $group->update([
-            'bot_status'      => 'removed',
+            'bot_status' => 'removed',
             'disconnected_at' => now(),
         ]);
     }
@@ -164,10 +257,10 @@ class TelegramGroupService
 
         $telegramMessage = TelegramMessage::create([
             'telegram_group_id' => $group->id,
-            'message_type'      => $messageType,
-            'message_body'      => $messageBody,
-            'language'          => $group->language,
-            'status'            => 'pending',
+            'message_type' => $messageType,
+            'message_body' => $messageBody,
+            'language' => $group->language,
+            'status' => 'pending',
         ]);
 
         \App\Jobs\SendTelegramNotification::dispatch($telegramMessage);
@@ -223,9 +316,9 @@ class TelegramGroupService
             $this->sendMessage($group, $messageType, $variables);
         } catch (\Throwable $e) {
             Log::error('TelegramGroupService: failed to notify client', [
-                'client_id'    => $clientId,
+                'client_id' => $clientId,
                 'message_type' => $messageType,
-                'error'        => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }

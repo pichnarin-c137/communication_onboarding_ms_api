@@ -26,6 +26,7 @@ Route::middleware(['jwt.auth', 'throttle:api'])->prefix('onboarding')->group(fun
     Route::patch('/{id}/resume', [OnboardingController::class, 'resumeHold'])->middleware('role:trainer')->name('onboarding.resume');
     Route::patch('/{id}/request-revision', [OnboardingController::class, 'requestRevision'])->middleware('role:sale,admin')->name('onboarding.requestRevision');
     Route::patch('/{id}/acknowledge-revision', [OnboardingController::class, 'acknowledgeRevision'])->middleware('role:trainer')->name('onboarding.acknowledgeRevision');
+    Route::get('/{id}/revision-history', [OnboardingController::class, 'revisionHistory'])->name('onboarding.revisionHistory');
     Route::patch('/{id}/reopen', [OnboardingController::class, 'reopen'])->middleware('role:sale,admin')->name('onboarding.reopen');
 
     // Management
@@ -60,9 +61,9 @@ Route::middleware(['jwt.auth', 'throttle:api'])->prefix('onboarding')->group(fun
         ->name('onboarding.lessons.send');
 
     // Client feedback (authenticated)
-    Route::post('/{id}/feedback/request', [OnboardingFeedbackController::class, 'request'])->middleware('role:trainer,admin')->name('onboarding.feedback.request');
-    Route::post('/{id}/feedback', [OnboardingFeedbackController::class, 'submitManual'])->middleware('role:trainer,admin')->name('onboarding.feedback.submitManual');
-    Route::get('/{id}/feedback', [OnboardingFeedbackController::class, 'show'])->name('onboarding.feedback.show');
+    Route::post('/{id}/request-feedback', [OnboardingFeedbackController::class, 'request'])->middleware('role:trainer,admin')->name('onboarding.feedback.request');
+    Route::post('/{id}/manual-feedback', [OnboardingFeedbackController::class, 'submitManual'])->middleware('role:trainer,admin')->name('onboarding.feedback.submitManual');
+    Route::get('/{id}/feedback-status', [OnboardingFeedbackController::class, 'show'])->name('onboarding.feedback.show');
 });
 
 // Public feedback routes — no auth, protected only by token validation

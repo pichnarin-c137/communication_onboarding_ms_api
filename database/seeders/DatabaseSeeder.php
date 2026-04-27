@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             SalesSeeder::class,
             BranchSeeder::class,
             ClientLinkAddressSeeder::class,
+            BusinessTypeSeeder::class,
         ]);
     }
 }

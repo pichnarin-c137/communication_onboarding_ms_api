@@ -29,6 +29,7 @@ use App\Services\Tracking\EtaService;
 use App\Services\Tracking\TrainerStatusService;
 use App\Services\Tracking\TrainerTrackingService;
 use App\Services\UserSettingsService;
+use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -62,7 +63,6 @@ class AppServiceProvider extends ServiceProvider
 
         // Telegram integration layer
         $this->app->singleton(TelegramGroupService::class, fn ($app) => new TelegramGroupService(
-            $app->make(TelegramService::class),
             $app->make(TelegramMessageTemplate::class),
             $app->make(UserSettingsService::class),
         ));
@@ -104,6 +104,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Carbon::serializeUsing(function (Carbon $carbon) {
+            return $carbon->setTimezone(config('app.timezone'))->format('Y-m-d\TH:i:s.uP');
+        });
+
         $this->configureRateLimiting();
     }
 

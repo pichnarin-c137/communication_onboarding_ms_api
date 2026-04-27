@@ -128,7 +128,7 @@
                     <p class="field-error" id="mismatch" style="display:none;">Passwords do not match.</p>
                 </div>
 
-                <button type="submit" class="btn" id="submitBtn">Reset Password</button>
+                <button type="submit" class="btn" style="color: #ffffff !important; text-decoration: none;" id="submitBtn">Reset Password</button>
             </form>
 
             <script>

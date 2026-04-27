@@ -97,7 +97,7 @@
                     @enderror
                 </div>
 
-                <button type="submit" class="btn">Submit Feedback</button>
+                <button type="submit" style="color: #ffffff !important; text-decoration: none;" class="btn">Submit Feedback</button>
             </form>
         @endif
 

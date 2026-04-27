@@ -20,11 +20,19 @@ class TrainerTrackingController extends Controller
     public function ping(LocationPingRequest $request): JsonResponse
     {
         $trainerId = $request->get('auth_user_id');
-        $this->trackingService->processPing($trainerId, $request->validated());
+        $trackingActive = $this->trackingService->processPing($trainerId, $request->validated());
+
+        $nextPingIn = $trackingActive
+            ? config('coms.tracking.ping_interval_seconds', 30)
+            : config('coms.tracking.idle_ping_interval_seconds', 300);
 
         return response()->json([
             'success' => true,
             'message' => 'Ping received.',
+            'data' => [
+                'tracking_active' => $trackingActive,
+                'next_ping_in' => $nextPingIn,
+            ],
         ]);
     }
 

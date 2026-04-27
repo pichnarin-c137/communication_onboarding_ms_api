@@ -7,8 +7,6 @@ use App\Exceptions\Business\DefaultPolicyCannotBeRemovedException;
 use App\Exceptions\Business\InvalidStatusTransitionException;
 use App\Exceptions\Business\LessonLockedAfterSendException;
 use App\Exceptions\Business\OnboardingProgressTooLowException;
-use App\Models\OnboardingAppointment;
-use App\Models\OnboardingClientFeedback;
 use App\Models\OnboardingCompanyInfo;
 use App\Models\OnboardingLesson;
 use App\Models\OnboardingPolicy;
@@ -42,22 +40,32 @@ class OnboardingService
         $all = Cache::store('redis')->remember($cacheKey, $ttl, function () use ($user) {
             $role = $user->role->role ?? null;
             $query = OnboardingRequest::with([
-                    'client:id,company_code,company_name',
-                    'trainer:id,first_name,last_name',
-                    'appointment.creator:id,first_name,last_name',
-                ]);
+                'client:id,company_code,company_name',
+                'trainer:id,first_name,last_name',
+                'appointment.creator:id,first_name,last_name',
+            ]);
 
             if ($role === 'trainer') {
                 $query->where('trainer_id', $user->id);
             } elseif ($role === 'sale') {
-                $query->whereHas('appointment', fn($q) => $q->where('creator_id', $user->id));
+                $query->whereHas('appointment', fn ($q) => $q->where('creator_id', $user->id));
             }
 
             return $query->orderByDesc('created_at')->get();
         });
 
+        $search = trim($filters['search'] ?? '');
+
         $filtered = $all
-            ->when(! empty($filters['status']), fn($c) => $c->where('status', $filters['status']))
+            ->when(! empty($filters['status']), fn ($c) => $c->where('status', $filters['status']))
+            ->when(! empty($filters['trainer_id']), fn ($c) => $c->where('trainer_id', $filters['trainer_id']))
+            ->when($search !== '', fn ($c) => $c->filter(fn ($ob) => str_contains(strtolower($ob->request_code ?? ''), strtolower($search)) ||
+                str_contains(strtolower($ob->client?->company_name ?? ''), strtolower($search))
+            ))
+            ->when(! empty($filters['date_from']), fn ($c) => $c->filter(fn ($ob) => $ob->created_at >= $filters['date_from']
+            ))
+            ->when(! empty($filters['date_to']), fn ($c) => $c->filter(fn ($ob) => $ob->created_at <= $filters['date_to'].' 23:59:59'
+            ))
             ->values();
 
         $total = $filtered->count();
@@ -88,8 +96,8 @@ class OnboardingService
                 'appointment.creator',
                 'companyInfo',
                 'systemAnalysis',
-                'policies' => fn($q) => $q->orderBy('created_at')->orderBy('id'),
-                'lessons' => fn($q) => $q->orderBy('path')->orderBy('slot_index')->orderBy('created_at')->orderBy('id'),
+                'policies' => fn ($q) => $q->orderBy('created_at')->orderBy('id'),
+                'lessons' => fn ($q) => $q->orderBy('path')->orderBy('slot_index')->orderBy('created_at')->orderBy('id'),
             ])->findOrFail($id);
         });
     }
@@ -114,8 +122,6 @@ class OnboardingService
             'appointment.creator',
         ])->findOrFail($id);
     }
-
-
 
     public function start(OnboardingRequest $onboarding): void
     {
@@ -273,11 +279,18 @@ class OnboardingService
             );
         }
 
+        $now = now();
+
         $onboarding->update([
             'status' => 'revision_requested',
             'revision_note' => $note,
-            'revision_requested_at' => now(),
-            'revision_requested_by_user_id' => $userId,
+        ]);
+
+        \App\Models\OnboardingRevisionHistory::create([
+            'onboarding_id' => $onboarding->id,
+            'note' => $note,
+            'requested_by_user_id' => $userId,
+            'requested_at' => $now,
         ]);
 
         try {
@@ -313,8 +326,18 @@ class OnboardingService
             'status' => 'in_progress',
         ]);
 
+        $latestRevision = \App\Models\OnboardingRevisionHistory::where('onboarding_id', $onboarding->id)
+            ->whereNull('acknowledged_at')
+            ->orderByDesc('requested_at')
+            ->first();
+
+        $latestRevision?->update([
+            'acknowledged_by_user_id' => $userId,
+            'acknowledged_at' => now(),
+        ]);
+
         try {
-            $requesterId = $onboarding->revision_requested_by_user_id;
+            $requesterId = $latestRevision?->requested_by_user_id;
             if ($requesterId) {
                 $this->notificationService->notify(
                     [$requesterId],
@@ -374,7 +397,7 @@ class OnboardingService
 
         if (($newTrainer->role->role ?? null) !== 'trainer') {
             throw new InvalidStatusTransitionException(
-                "The selected user is not a trainer."
+                'The selected user is not a trainer.'
             );
         }
 
@@ -478,23 +501,23 @@ class OnboardingService
             ])
             ->orderBy('linked_at')
             ->get()
-            ->map(fn($link) => [
-                'id'             => $link->id,
+            ->map(fn ($link) => [
+                'id' => $link->id,
                 'appointment_id' => $link->appointment_id,
-                'session_type'   => $link->session_type,
-                'linked_at'      => $link->linked_at,
-                'appointment'    => $link->appointment ? [
-                    'id'                   => $link->appointment->id,
-                    'title'                => $link->appointment->title,
-                    'appointment_type'     => $link->appointment->appointment_type,
-                    'status'               => $link->appointment->status,
-                    'scheduled_date'       => $link->appointment->scheduled_date,
+                'session_type' => $link->session_type,
+                'linked_at' => $link->linked_at,
+                'appointment' => $link->appointment ? [
+                    'id' => $link->appointment->id,
+                    'title' => $link->appointment->title,
+                    'appointment_type' => $link->appointment->appointment_type,
+                    'status' => $link->appointment->status,
+                    'scheduled_date' => $link->appointment->scheduled_date,
                     'scheduled_start_time' => $link->appointment->scheduled_start_time,
-                    'scheduled_end_time'   => $link->appointment->scheduled_end_time,
-                    'trainer'              => $link->appointment->trainer
+                    'scheduled_end_time' => $link->appointment->scheduled_end_time,
+                    'trainer' => $link->appointment->trainer
                         ? ['id' => $link->appointment->trainer->id, 'first_name' => $link->appointment->trainer->first_name, 'last_name' => $link->appointment->trainer->last_name]
                         : null,
-                    'creator'              => $link->appointment->creator
+                    'creator' => $link->appointment->creator
                         ? ['id' => $link->appointment->creator->id, 'first_name' => $link->appointment->creator->first_name, 'last_name' => $link->appointment->creator->last_name]
                         : null,
                 ] : null,
@@ -512,7 +535,7 @@ class OnboardingService
                 'request_code' => $ob->request_code,
                 'cycle_number' => $ob->cycle_number,
                 'status' => $ob->status,
-                'trainer_name' => $ob->trainer ? ($ob->trainer->first_name . ' ' . $ob->trainer->last_name) : null,
+                'trainer_name' => $ob->trainer ? ($ob->trainer->first_name.' '.$ob->trainer->last_name) : null,
                 'progress_percentage' => $ob->progress_percentage,
                 'completed_at' => $ob->completed_at,
                 'created_at' => $ob->created_at,
@@ -543,8 +566,8 @@ class OnboardingService
         if (isset($data['is_completed'])) {
             $updateData['is_completed'] = $data['is_completed'];
             if ($data['is_completed']) {
-                $updateData['completed_at']          = now();
-                $updateData['completed_by_user_id']  = $userId;
+                $updateData['completed_at'] = now();
+                $updateData['completed_by_user_id'] = $userId;
             }
         }
 
@@ -566,7 +589,7 @@ class OnboardingService
 
     public function updateSystemAnalysis(OnboardingSystemAnalysis $analysis, array $data): OnboardingSystemAnalysis
     {
-        $analysis->update(array_filter($data, fn($v) => ! is_null($v)));
+        $analysis->update(array_filter($data, fn ($v) => ! is_null($v)));
         $this->invalidateOnboarding($analysis->onboarding_id, $analysis->onboarding?->trainer_id);
 
         return $analysis;
@@ -668,7 +691,7 @@ class OnboardingService
             throw new LessonLockedAfterSendException;
         }
 
-        $lesson->update(array_filter($data, fn($v) => ! is_null($v)));
+        $lesson->update(array_filter($data, fn ($v) => ! is_null($v)));
         $this->invalidateOnboarding($lesson->onboarding_id, $lesson->onboarding?->trainer_id);
 
         return $lesson->fresh();

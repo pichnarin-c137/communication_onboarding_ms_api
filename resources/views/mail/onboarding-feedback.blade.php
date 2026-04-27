@@ -11,8 +11,8 @@
         .header h1 { margin: 0; font-size: 22px; }
         .body { padding: 32px 40px; }
         .body p { line-height: 1.6; }
-        .cta { text-align: center; margin: 32px 0; }
-        .btn { display: inline-block; padding: 14px 36px; background: #1a56db; color: #fff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: bold; }
+        .cta { text-align: center; margin: 32px 0; color: white }
+        .btn { display: inline-block; padding: 14px 36px; background: #1a56db; color: #ffffff !important; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: bold; }
         .notice { font-size: 13px; color: #888; margin-top: 24px; border-top: 1px solid #eee; padding-top: 16px; }
         .footer { background: #f9f9f9; padding: 20px 40px; font-size: 12px; color: #aaa; text-align: center; }
     </style>
@@ -33,7 +33,7 @@
         <p>Please click the button below to rate your experience. It only takes a minute.</p>
 
         <div class="cta">
-            <a href="{{ $feedbackUrl }}" class="btn">Share Your Feedback</a>
+            <a href="{{ $feedbackUrl }}" class="btn" style="color: #ffffff !important; text-decoration: none;">Share Your Feedback</a>
         </div>
 
         <div class="notice">
