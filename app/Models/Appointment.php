@@ -68,7 +68,7 @@ class Appointment extends Model
         'end_proof_media' => 'string',
         'cancelled_by_user_id' => 'string',
         'related_onboarding_id' => 'string',
-        'scheduled_date' => 'date',
+        'scheduled_date' => 'date:Y-m-d',
         'actual_start_time' => 'datetime',
         'actual_end_time' => 'datetime',
         'leave_office_at' => 'datetime',

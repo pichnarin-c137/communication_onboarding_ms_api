@@ -37,7 +37,7 @@ class TelegramMessageController extends Controller
             'content'       => $msg->message_body,
             'language'      => $msg->language,
             'status'        => $msg->status,
-            'sent_at'       => $msg->sent_at?->toDateTimeString(),
+            'sent_at'       => $msg->sent_at,
             'error_message' => $msg->error_message,
         ]);
 

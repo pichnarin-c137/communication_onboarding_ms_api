@@ -36,7 +36,7 @@ class User extends Authenticatable
         'id' => 'string',
         'role_id' => 'string',
         'branch_id' => 'string',
-        'dob' => 'date',
+        'dob' => 'date:Y-m-d',
         'is_suspended' => 'boolean',
     ];
 

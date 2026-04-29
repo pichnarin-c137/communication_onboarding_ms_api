@@ -89,12 +89,17 @@ class AppServiceProvider extends ServiceProvider
 
         // Broadcasting
         $this->app->singleton(\Pusher\Pusher::class, function () {
-            $cfg = config('services.pusher');
             return new \Pusher\Pusher(
-                $cfg['app_key'],
-                $cfg['secret'],
-                $cfg['app_id'],
-                $cfg['options']
+                config('reverb.apps.apps.0.key'),
+                config('reverb.apps.apps.0.secret'),
+                config('reverb.apps.apps.0.app_id'),
+                [
+                    'host'      => 'reverb',
+                    'port'      => 8080,
+                    'scheme'    => 'http',
+                    'encrypted' => false,
+                    'useTLS'    => false,
+                ]
             );
         });
     }
@@ -105,7 +110,11 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Carbon::serializeUsing(function (Carbon $carbon) {
-            return $carbon->setTimezone(config('app.timezone'))->format('Y-m-d\TH:i:s.uP');
+            $tz = app()->bound('request.timezone')
+                ? app('request.timezone')
+                : 'Asia/Phnom_Penh';
+
+            return $carbon->setTimezone($tz)->format('Y-m-d\TH:i:s.uP');
         });
 
         $this->configureRateLimiting();

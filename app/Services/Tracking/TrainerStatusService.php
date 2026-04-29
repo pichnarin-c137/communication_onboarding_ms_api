@@ -90,7 +90,7 @@ class TrainerStatusService
             'lat' => $lat,
             'lng' => $lng,
             'detection_method' => $detectionMethod,
-            'updated_at' => now()->toISOString(),
+            'updated_at' => now()->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP'),
         ];
 
         $ttl = config('coms.tracking.status_cache_ttl', 86400);
@@ -163,7 +163,7 @@ class TrainerStatusService
             'lat' => null,
             'lng' => null,
             'detection_method' => 'system',
-            'updated_at' => now()->toISOString(),
+            'updated_at' => now()->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP'),
         ];
 
         $ttl = config('coms.tracking.status_cache_ttl', 86400);

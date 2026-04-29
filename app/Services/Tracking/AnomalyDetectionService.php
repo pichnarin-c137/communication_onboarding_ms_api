@@ -217,7 +217,7 @@ class AnomalyDetectionService
                         'low',
                         [
                             'appointment_id' => $appointment->id,
-                            'scheduled_start' => $scheduledStart->toISOString(),
+                            'scheduled_start' => $scheduledStart->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP'),
                             'minutes_until_start' => $minutesUntilStart,
                         ]
                     );

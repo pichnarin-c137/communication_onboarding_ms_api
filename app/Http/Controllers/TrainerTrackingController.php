@@ -78,7 +78,7 @@ class TrainerTrackingController extends Controller
         $status['lat'] = $lat;
         $status['lng'] = $lng;
         $status['status'] = $status['status'] ?? 'at_office';
-        $status['updated_at'] = now()->toISOString();
+        $status['updated_at'] = now()->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP');
 
         $ttl = config('coms.tracking.status_cache_ttl', 86400);
         Redis::setex(TrainerTrackingService::statusKey($trainerId), $ttl, json_encode($status));

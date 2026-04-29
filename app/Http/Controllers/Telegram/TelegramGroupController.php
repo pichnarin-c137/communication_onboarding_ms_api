@@ -39,8 +39,8 @@ class TelegramGroupController extends Controller
             'chat_id' => $group->bot_status === 'pending' ? null : $group->chat_id,
             'bot_status' => $group->bot_status,
             'language' => $group->language,
-            'connected_at' => $group->connected_at?->toDateTimeString(),
-            'disconnected_at' => $group->disconnected_at?->toDateTimeString(),
+            'connected_at' => $group->connected_at,
+            'disconnected_at' => $group->disconnected_at,
         ]);
 
         return response()->json([
@@ -80,16 +80,16 @@ class TelegramGroupController extends Controller
                 'chat_id' => $group->bot_status === 'pending' ? null : $group->chat_id,
                 'bot_status' => $group->bot_status,
                 'language' => $group->language,
-                'connected_at' => $group->connected_at?->toDateTimeString(),
-                'disconnected_at' => $group->disconnected_at?->toDateTimeString(),
-                'reconnected_at' => $group->reconnected_at?->toDateTimeString(),
+                'connected_at' => $group->connected_at,
+                'disconnected_at' => $group->disconnected_at,
+                'reconnected_at' => $group->reconnected_at,
                 'recent_messages' => $group->messages->map(fn ($msg) => [
                     'id' => $msg->id,
                     'content' => $msg->message_body,
                     'message_type' => $msg->message_type,
                     'status' => $msg->status,
                     'language' => $msg->language,
-                    'sent_at' => $msg->sent_at?->toDateTimeString(),
+                    'sent_at' => $msg->sent_at,
                 ]),
             ],
         ]);
@@ -110,8 +110,8 @@ class TelegramGroupController extends Controller
             'data' => [
                 'id' => $group->id,
                 'bot_status' => $group->bot_status,
-                'disconnected_at' => $group->disconnected_at?->toDateTimeString(),
-                'reconnected_at' => $group->reconnected_at?->toDateTimeString(),
+                'disconnected_at' => $group->disconnected_at,
+                'reconnected_at' => $group->reconnected_at,
             ],
         ]);
     }
@@ -126,8 +126,8 @@ class TelegramGroupController extends Controller
             'data' => [
                 'id' => $group->id,
                 'bot_status' => $group->bot_status,
-                'disconnected_at' => $group->disconnected_at?->toDateTimeString(),
-                'reconnected_at' => $group->reconnected_at?->toDateTimeString(),
+                'disconnected_at' => $group->disconnected_at,
+                'reconnected_at' => $group->reconnected_at,
             ],
         ]);
     }

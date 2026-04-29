@@ -31,10 +31,16 @@ class JwtAuthenticate
             throw new InvalidTokenTypeException('Token must be an access token');
         }
 
-        // Attach user info to request
+        // Read timezone from token payload — set at login, no DB query needed
+        $timezone = $decoded->timezone ?? 'Asia/Phnom_Penh';
+
+        // Bind per-request so serializeUsing and services can read it
+        app()->instance('request.timezone', $timezone);
+
         $request->merge([
-            'auth_user_id' => $decoded->user_id,
-            'auth_role' => $decoded->role,
+            'auth_user_id'  => $decoded->user_id,
+            'auth_role'     => $decoded->role,
+            'auth_timezone' => $timezone,
         ]);
 
         return $next($request);

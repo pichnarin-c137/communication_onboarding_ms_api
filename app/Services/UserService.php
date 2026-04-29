@@ -304,8 +304,8 @@ class UserService
                         'degree_certificate_url' => $user->personalInformation->degree_certificate_url,
                         'social_media' => $user->personalInformation->social_media,
                     ] : null,
-                    'created_at' => $user->created_at->toIso8601String(),
-                    'deleted_at' => $user->deleted_at?->toIso8601String(),
+                    'created_at' => $user->created_at,
+                    'deleted_at' => $user->deleted_at,
                 ];
             })->values()->toArray(),
             'pagination' => [

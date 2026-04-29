@@ -54,7 +54,7 @@ class OnboardingRequest extends Model
         'hold_started_at' => 'datetime',
         'sla_breached_at' => 'datetime',
         'reopened_at' => 'datetime',
-        'due_date' => 'date',
+        'due_date' => 'date:Y-m-d',
     ];
 
     public function appointment(): BelongsTo

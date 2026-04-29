@@ -78,7 +78,8 @@ class AuthController extends Controller
         $tokens = $this->authService->verifyOtpAndIssueTokens(
             $request->identifier,
             $request->otp,
-            $request->has('remember_me') ? $request->boolean('remember_me') : null
+            $request->has('remember_me') ? $request->boolean('remember_me') : null,
+            $request->input('timezone')
         );
 
         $refreshToken              = $tokens['refresh_token'];

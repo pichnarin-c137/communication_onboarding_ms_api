@@ -56,7 +56,7 @@ class EtaService
                 'eta_minutes' => $etaMinutes,
                 'distance_meters' => $distanceMeters,
                 'route_geometry' => $geometry,
-                'calculated_at' => now()->toISOString(),
+                'calculated_at' => now()->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP'),
             ];
 
             // Cache in Redis

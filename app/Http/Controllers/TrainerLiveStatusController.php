@@ -45,7 +45,7 @@ class TrainerLiveStatusController extends Controller
                 'detection_method' => $log->detection_method,
                 'accuracy' => $log->accuracy,
                 'speed' => $log->speed,
-                'created_at' => $log->created_at?->toISOString(),
+                'created_at' => $log->created_at,
             ]);
 
         $trail = $this->trackingService->getTrail($id);
@@ -73,7 +73,7 @@ class TrainerLiveStatusController extends Controller
                 'detection_method' => $log->detection_method,
                 'accuracy' => $log->accuracy,
                 'speed' => $log->speed,
-                'created_at' => $log->created_at?->toISOString(),
+                'created_at' => $log->created_at,
             ]);
 
         $pings = TrainerLocationPing::where('trainer_id', $id)
@@ -85,7 +85,7 @@ class TrainerLiveStatusController extends Controller
                 'lng' => $ping->longitude,
                 'accuracy' => $ping->accuracy,
                 'speed' => $ping->speed,
-                'pinged_at' => $ping->pinged_at?->toISOString(),
+                'pinged_at' => $ping->pinged_at,
             ]);
 
         return response()->json([

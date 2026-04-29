@@ -64,7 +64,7 @@ class JwtService
     /**
      * Generate access token (short-lived)
      */
-    public function generateAccessToken(User $user, ?int $expiryMinutes = null): string
+    public function generateAccessToken(User $user, ?int $expiryMinutes = null, string $timezone = 'Asia/Phnom_Penh'): string
     {
         $effectiveExpiry = $expiryMinutes ?? $this->accessTokenExpiry;
 
@@ -73,6 +73,7 @@ class JwtService
             'sub' => $user->id,
             'user_id' => $user->id,
             'role' => $user->role->role,
+            'timezone' => $timezone,
             'iat' => time(),
             'exp' => time() + ($effectiveExpiry * 60),
             'type' => 'access',
@@ -84,7 +85,7 @@ class JwtService
     /**
      * Generate refresh token (long-lived) and store in DB
      */
-    public function generateRefreshToken(User $user, ?int $expiryMinutes = null, bool $rememberme = false): string
+    public function generateRefreshToken(User $user, ?int $expiryMinutes = null, bool $rememberme = false, string $timezone = 'Asia/Phnom_Penh'): string
     {
         $effectiveExpiry = $expiryMinutes ?? $this->refreshTokenExpiry;
 
@@ -92,10 +93,11 @@ class JwtService
             'iss' => config('app.url'),
             'sub' => $user->id,
             'user_id' => $user->id,
+            'timezone' => $timezone,
             'iat' => time(),
             'exp' => time() + ($effectiveExpiry * 60),
             'type' => 'refresh',
-            'jti' => bin2hex(random_bytes(32)), // Unique token ID
+            'jti' => bin2hex(random_bytes(32)),
             'remember_me' => $rememberme,
         ];
 
@@ -175,8 +177,11 @@ class JwtService
             ? (int) config('jwt.rememberme_access_token_expiry', 1440)
             : $this->accessTokenExpiry;
 
+        // Carry timezone from the refresh token — no extra DB query needed
+        $timezone = $decoded->timezone ?? 'Asia/Phnom_Penh';
+
         // Generate new access token
-        $newAccessToken = $this->generateAccessToken($user, $accessExpiryMinutes);
+        $newAccessToken = $this->generateAccessToken($user, $accessExpiryMinutes, $timezone);
 
         return [
             'access_token' => $newAccessToken,

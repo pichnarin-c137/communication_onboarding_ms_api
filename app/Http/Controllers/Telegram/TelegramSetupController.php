@@ -36,7 +36,7 @@ class TelegramSetupController extends Controller
             'message' => 'Setup token generated successfully.',
             'data' => [
                 'token' => $token->token,
-                'expires_at' => $token->expires_at->format('Y-m-d H:i:s'),
+                'expires_at' => $token->expires_at,
                 'client_id' => $token->client_id,
                 'created' => $token->wasRecentlyCreated,
             ],
@@ -64,7 +64,7 @@ class TelegramSetupController extends Controller
             'message' => 'Setup token retrieved successfully.',
             'data' => [
                 'token' => $token->token,
-                'expires_at' => $token->expires_at->format('Y-m-d H:i:s'),
+                'expires_at' => $token->expires_at,
                 'client_id' => $token->client_id,
                 'created' => $token->wasRecentlyCreated,
             ],

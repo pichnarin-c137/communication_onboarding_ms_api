@@ -14,6 +14,7 @@ use App\Exceptions\WrongEmailRegexFormat;
 use App\Mail\ForgotPasswordMail;
 use App\Models\Credential;
 use App\Models\User;
+use App\Models\UserSetting;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -78,7 +79,7 @@ class AuthService
      *
      * @throws InvalidOtpException
      */
-    public function verifyOtpAndIssueTokens(string $identifier, string $otp, ?bool $rememberme = null): array
+    public function verifyOtpAndIssueTokens(string $identifier, string $otp, ?bool $rememberme = null, ?string $timezone = null): array
     {
         $credential = Credential::where('email', $identifier)
             ->orWhere('username', $identifier)
@@ -107,13 +108,13 @@ class AuthService
         $user = $credential->user;
         $resolvedRememberMe = $rememberme ?? (bool) $credential->remember_me;
 
-        return $this->issueTokens($user, $resolvedRememberMe);
+        return $this->issueTokens($user, $resolvedRememberMe, $timezone);
     }
 
     /**
      * Generate tokens for a user (bypass OTP/Password)
      */
-    public function issueTokens(User $user, bool $rememberme = false): array
+    public function issueTokens(User $user, bool $rememberme = false, ?string $timezone = null): array
     {
         $accessExpiryMinutes = $rememberme
             ? (int) config('jwt.rememberme_access_token_expiry', 1440)
@@ -123,8 +124,15 @@ class AuthService
             ? (int) config('jwt.rememberme_refresh_token_expiry', 43200)
             : (int) config('jwt.refresh_token_expiry', 1440);
 
-        $accessToken = $this->jwtService->generateAccessToken($user, $accessExpiryMinutes);
-        $refreshToken = $this->jwtService->generateRefreshToken($user, $refreshExpiryMinutes, $rememberme);
+        // Persist user's timezone choice, then embed it in both tokens
+        $setting = UserSetting::firstOrCreate(['user_id' => $user->id]);
+        if ($timezone) {
+            $setting->update(['timezone' => $timezone]);
+        }
+        $resolvedTimezone = $setting->timezone ?? 'Asia/Phnom_Penh';
+
+        $accessToken  = $this->jwtService->generateAccessToken($user, $accessExpiryMinutes, $resolvedTimezone);
+        $refreshToken = $this->jwtService->generateRefreshToken($user, $refreshExpiryMinutes, $rememberme, $resolvedTimezone);
 
         return [
             'access_token' => $accessToken,

@@ -104,7 +104,7 @@ class TrainerTrackingService
             'lng' => $lng,
             'accuracy' => $accuracy,
             'speed' => $speed,
-            'timestamp' => $timestamp->toISOString(),
+            'timestamp' => $timestamp->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP'),
         ]);
         Redis::rpush(self::trailKey($trainerId), $breadcrumb);
 
@@ -119,7 +119,7 @@ class TrainerTrackingService
                 $lng,
                 $speed,
                 $accuracy,
-                $timestamp->toISOString()
+                $timestamp->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP')
             );
         } catch (\Throwable $e) {
             Log::error('TrainerLocationUpdated broadcast failed', [
