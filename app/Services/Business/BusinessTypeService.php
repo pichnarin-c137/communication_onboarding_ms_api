@@ -9,25 +9,34 @@ use Illuminate\Support\Facades\Cache;
 
 class BusinessTypeService
 {
-    public function list(int $perPage, int $page): array
+    public function list(int $perPage, int $page, string $search = ''): array
     {
-        $version  = (int) Cache::get('business_type:list_version', 1);
-        $cacheKey = "business_type:list:v{$version}:page_{$page}_per_{$perPage}";
-        $ttl      = config('coms.business.business_type_list_ttl', 600);
+        $version = (int) Cache::get('business_type:list_version', 1);
+        $searchKey = $search !== '' ? md5($search) : 'all';
+        $cacheKey = "business_type:list:v{$version}:page_{$page}_per_{$perPage}:search_{$searchKey}";
+        $ttl = config('coms.business.business_type_list_ttl', 600);
 
-        return Cache::remember($cacheKey, $ttl, function () use ($perPage, $page): array {
-            $paginator = BusinessType::orderBy('name_en')
-                ->paginate($perPage, ['*'], 'page', $page);
+        return Cache::remember($cacheKey, $ttl, function () use ($perPage, $page, $search): array {
+            $query = BusinessType::query()->orderBy('name_en');
+
+            if ($search !== '') {
+                $query->where(function ($builder) use ($search) {
+                    $builder->where('name_en', 'ilike', "%{$search}%")
+                        ->orWhere('name_km', 'ilike', "%{$search}%");
+                });
+            }
+
+            $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
             return [
                 'data' => $paginator->items(),
                 'meta' => [
-                    'total'        => $paginator->total(),
-                    'per_page'     => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'per_page' => $paginator->perPage(),
                     'current_page' => $paginator->currentPage(),
-                    'last_page'    => $paginator->lastPage(),
-                    'from'         => $paginator->firstItem(),
-                    'to'           => $paginator->lastItem(),
+                    'last_page' => $paginator->lastPage(),
+                    'from' => $paginator->firstItem(),
+                    'to' => $paginator->lastItem(),
                 ],
             ];
         });
@@ -36,9 +45,9 @@ class BusinessTypeService
     public function get(string $id): BusinessType
     {
         $cacheKey = "business_type:{$id}";
-        $ttl      = config('coms.business.business_type_show_ttl', 1800);
+        $ttl = config('coms.business.business_type_show_ttl', 1800);
 
-        $businessType = Cache::remember($cacheKey, $ttl, fn() => BusinessType::find($id));
+        $businessType = Cache::remember($cacheKey, $ttl, fn () => BusinessType::find($id));
 
         if (! $businessType) {
             throw new BusinessTypeNotFoundException(

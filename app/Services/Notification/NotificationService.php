@@ -29,20 +29,20 @@ class NotificationService
             return;
         }
 
-        $now  = now();
+        $now = now();
         $rows = array_map(fn ($userId) => [
-            'id'                  => (string) Str::uuid(),
-            'user_id'             => $userId,
-            'client_contact_id'   => null,
-            'type'                => $type,
-            'title'               => $title,
-            'message'             => $message,
+            'id' => (string) Str::uuid(),
+            'user_id' => $userId,
+            'client_contact_id' => null,
+            'type' => $type,
+            'title' => $title,
+            'message' => $message,
             'related_entity_type' => $relatedEntity['type'] ?? null,
-            'related_entity_id'   => $relatedEntity['id'] ?? null,
-            'is_read'             => false,
-            'read_at'             => null,
-            'created_at'          => $now,
-            'updated_at'          => $now,
+            'related_entity_id' => $relatedEntity['id'] ?? null,
+            'is_read' => false,
+            'read_at' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
         ], $eligibleUserIds);
 
         Notification::insert($rows);

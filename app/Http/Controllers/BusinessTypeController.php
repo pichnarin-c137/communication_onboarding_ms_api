@@ -18,15 +18,16 @@ class BusinessTypeController extends Controller
     public function index(): JsonResponse
     {
         $perPage = max(1, min(100, (int) request()->input('per_page', 15)));
-        $page    = max(1, (int) request()->input('page', 1));
+        $page = max(1, (int) request()->input('page', 1));
+        $search = trim((string) request()->input('search', ''));
 
-        $result = $this->businessTypeService->list($perPage, $page);
+        $result = $this->businessTypeService->list($perPage, $page, $search);
 
         return response()->json([
             'success' => true,
             'message' => 'Business types retrieved successfully.',
-            'data'    => $result['data'],
-            'meta'    => $result['meta'],
+            'data' => $result['data'],
+            'meta' => $result['meta'],
         ]);
     }
 
@@ -37,7 +38,7 @@ class BusinessTypeController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Business type created successfully.',
-            'data'    => $businessType,
+            'data' => $businessType,
         ], 201);
     }
 
@@ -48,7 +49,7 @@ class BusinessTypeController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Business type retrieved successfully.',
-            'data'    => $businessType,
+            'data' => $businessType,
         ]);
     }
 
@@ -60,7 +61,7 @@ class BusinessTypeController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Business type updated successfully.',
-            'data'    => $businessType,
+            'data' => $businessType,
         ]);
     }
 
@@ -72,7 +73,7 @@ class BusinessTypeController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Business type deleted successfully.',
-            'data'    => null,
+            'data' => null,
         ]);
     }
 

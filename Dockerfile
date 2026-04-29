@@ -7,7 +7,8 @@ WORKDIR /var/www/html
 RUN apk add --no-cache \
     git curl zip unzip bash \
     libpq-dev oniguruma-dev libxml2-dev \
-    linux-headers
+    linux-headers \
+    tesseract-ocr tesseract-ocr-data-eng
 
 # PHP extensions
 RUN docker-php-ext-install \

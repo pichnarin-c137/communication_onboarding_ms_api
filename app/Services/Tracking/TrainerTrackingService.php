@@ -55,13 +55,13 @@ class TrainerTrackingService
         $timestamp = Carbon::parse($data['timestamp']);
 
         // Validate accuracy
-        $maxAccuracy = config('coms.tracking.max_accuracy_meters', 100);
-        if ($accuracy > $maxAccuracy) {
-            throw new LocationPingRejectedException(
-                "Accuracy {$accuracy}m exceeds maximum {$maxAccuracy}m.",
-                context: ['trainer_id' => $trainerId, 'accuracy' => $accuracy]
-            );
-        }
+        //        $maxAccuracy = config('coms.tracking.max_accuracy_meters', 100);
+        //        if ($accuracy > $maxAccuracy) {
+        //            throw new LocationPingRejectedException(
+        //                "Accuracy {$accuracy}m exceeds maximum {$maxAccuracy}m.",
+        //                context: ['trainer_id' => $trainerId, 'accuracy' => $accuracy]
+        //            );
+        //        }
 
         // Validate timestamp freshness
         $maxAge = config('coms.tracking.max_ping_age_seconds', 60);

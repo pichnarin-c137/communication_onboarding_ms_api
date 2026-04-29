@@ -5,6 +5,7 @@ namespace App\Services\Business;
 use App\Exceptions\Business\DocumentExtractionFailedException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Imagick;
 use Smalot\PdfParser\Parser as PdfParser;
 use thiagoalessio\TesseractOCR\TesseractOCR;
 
@@ -23,9 +24,20 @@ class DocumentExtractionService
             $rawText = $this->extractFromPdf($file->getRealPath());
         } elseif (in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
             $rawText = $this->extractFromImage($file->getRealPath());
+        } else {
+            throw new DocumentExtractionFailedException(
+                'Unsupported document type.',
+                context: ['mime' => $mime, 'filename' => $file->getClientOriginalName()]
+            );
         }
 
         if (empty(trim($rawText))) {
+            Log::warning('Document extraction produced empty text.', [
+                'mime' => $mime,
+                'filename' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+            ]);
+
             throw new DocumentExtractionFailedException(
                 'Could not extract text from the uploaded document.',
                 context: ['mime' => $mime, 'filename' => $file->getClientOriginalName()]
@@ -44,15 +56,22 @@ class DocumentExtractionService
             $pdf = $parser->parseFile($path);
             $text = $pdf->getText();
 
-            return $text ?? '';
+            if (! empty(trim((string) $text))) {
+                return $text;
+            }
+
+            Log::info('PDF text was empty, attempting OCR fallback.', [
+                'path' => $path,
+            ]);
+
+            return $this->extractFromPdfImages($path);
         } catch (\Throwable $e) {
             Log::warning('PDF text extraction failed, falling back to OCR.', [
                 'error' => $e->getMessage(),
                 'path' => $path,
             ]);
 
-            // Fallback: try Tesseract on PDF as image
-            return $this->extractFromImage($path);
+            return $this->extractFromPdfImages($path);
         }
     }
 
@@ -60,11 +79,59 @@ class DocumentExtractionService
     {
         try {
             $ocr = new TesseractOCR($path);
-            $ocr->lang('eng', 'khm');
+            $ocr->lang('eng');
 
             return $ocr->run();
         } catch (\Throwable $e) {
             Log::warning('Tesseract OCR failed.', [
+                'error' => $e->getMessage(),
+                'path' => $path,
+            ]);
+
+            return '';
+        }
+    }
+
+    private function extractFromPdfImages(string $path): string
+    {
+        if (! class_exists(Imagick::class)) {
+            Log::warning('Imagick is not available for PDF OCR fallback.', [
+                'path' => $path,
+            ]);
+
+            return '';
+        }
+
+        try {
+            $imagick = new Imagick;
+            $imagick->setResolution(200, 200);
+            $imagick->readImage($path);
+
+            $textChunks = [];
+            $pageLimit = 2;
+            $pageIndex = 0;
+
+            foreach ($imagick as $page) {
+                if ($pageIndex >= $pageLimit) {
+                    break;
+                }
+
+                $page->setImageFormat('png');
+                $tempPath = tempnam(sys_get_temp_dir(), 'pdf_ocr_').'.png';
+                $page->writeImage($tempPath);
+
+                $textChunks[] = $this->extractFromImage($tempPath);
+
+                @unlink($tempPath);
+                $pageIndex++;
+            }
+
+            $imagick->clear();
+            $imagick->destroy();
+
+            return trim(implode("\n", array_filter($textChunks)));
+        } catch (\Throwable $e) {
+            Log::warning('PDF OCR fallback via Imagick failed.', [
                 'error' => $e->getMessage(),
                 'path' => $path,
             ]);
