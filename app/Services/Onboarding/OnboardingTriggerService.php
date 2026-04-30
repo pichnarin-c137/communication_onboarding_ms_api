@@ -13,6 +13,8 @@ use App\Services\Telegram\TelegramGroupService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Throwable;
 
 class OnboardingTriggerService
 {
@@ -29,8 +31,8 @@ class OnboardingTriggerService
     ];
 
     public function __construct(
-        private NotificationService $notificationService,
-        private TelegramGroupService $telegramGroupService,
+        private readonly NotificationService $notificationService,
+        private readonly TelegramGroupService $telegramGroupService,
     ) {}
 
     /**
@@ -106,6 +108,9 @@ class OnboardingTriggerService
         ]);
     }
 
+    /**
+     * @throws Throwable
+     */
     public function trigger(Appointment $appt): OnboardingRequest
     {
         $onboarding = DB::transaction(function () use ($appt) {
@@ -124,8 +129,8 @@ class OnboardingTriggerService
 
             // Seed default policies
             $now = now();
-            $policies = array_map(fn($name) => [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+            $policies = array_map(fn ($name) => [
+                'id' => (string) Str::uuid(),
                 'onboarding_id' => $onboarding->id,
                 'policy_name' => $name,
                 'is_default' => true,
@@ -170,7 +175,7 @@ class OnboardingTriggerService
                 [$appt->creator_id],
                 'onboarding_created',
                 'Onboarding Request Created',
-                "Onboarding request {$onboarding->request_code} has been created automatically after completing the training appointment.",
+                "Onboarding request $onboarding->request_code has been created automatically after completing the training appointment.",
                 ['type' => 'onboarding_request', 'id' => $onboarding->id]
             );
 
@@ -179,11 +184,11 @@ class OnboardingTriggerService
                     [$appt->trainer_id],
                     'onboarding_created',
                     'Onboarding Request Assigned',
-                    "You have been assigned to onboarding request {$onboarding->request_code}.",
+                    "You have been assigned to onboarding request $onboarding->request_code.",
                     ['type' => 'onboarding_request', 'id' => $onboarding->id]
                 );
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingTriggerService notification failed', [
                 'onboarding_id' => $onboarding->id,
                 'error' => $e->getMessage(),
@@ -194,20 +199,23 @@ class OnboardingTriggerService
             $this->telegramGroupService->notifyClient($appt->client_id, 'onboarding_started', [
                 'client_name' => $appt->client?->company_name ?? 'Client',
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingTriggerService Telegram notification failed', [
                 'onboarding_id' => $onboarding->id,
-                'error'         => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
 
         foreach (array_unique(array_filter([$appt->trainer_id, $appt->creator_id])) as $userId) {
-            Cache::store('redis')->forget("onboarding:list:{$userId}");
+            Cache::store('redis')->forget("onboarding:list:$userId");
         }
 
         return $onboarding;
     }
 
+    /**
+     * @throws Throwable
+     */
     public function linkSupplementalSession(Appointment $appt, OnboardingRequest $onboarding): void
     {
         DB::transaction(function () use ($appt, $onboarding) {
@@ -225,11 +233,11 @@ class OnboardingTriggerService
                     [$appt->trainer_id],
                     'onboarding_supplemental_linked',
                     'Supplemental Session Linked',
-                    "A supplemental training session has been linked to onboarding {$onboarding->request_code}.",
+                    "A supplemental training session has been linked to onboarding $onboarding->request_code.",
                     ['type' => 'onboarding_request', 'id' => $onboarding->id]
                 );
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingTriggerService linkSupplementalSession notification failed', [
                 'onboarding_id' => $onboarding->id,
                 'appointment_id' => $appt->id,
@@ -237,9 +245,12 @@ class OnboardingTriggerService
             ]);
         }
 
-        Cache::store('redis')->forget("onboarding:show:{$onboarding->id}");
+        Cache::store('redis')->forget("onboarding:show:$onboarding->id");
     }
 
+    /**
+     * @throws Throwable
+     */
     public function triggerNewCycle(Appointment $appt, OnboardingRequest $previous): OnboardingRequest
     {
         $onboarding = DB::transaction(function () use ($appt, $previous) {
@@ -261,8 +272,8 @@ class OnboardingTriggerService
 
             // Seed default policies
             $now = now();
-            $policies = array_map(fn($name) => [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+            $policies = array_map(fn ($name) => [
+                'id' => (string) Str::uuid(),
                 'onboarding_id' => $onboarding->id,
                 'policy_name' => $name,
                 'is_default' => true,
@@ -308,12 +319,12 @@ class OnboardingTriggerService
                 $this->notificationService->notify(
                     $recipients,
                     'onboarding_cycle_created',
-                    "Onboarding Cycle {$onboarding->cycle_number} Created",
-                    "Onboarding cycle {$onboarding->cycle_number} has been created for request {$onboarding->request_code}.",
+                    "Onboarding Cycle $onboarding->cycle_number Created",
+                    "Onboarding cycle $onboarding->cycle_number has been created for request $onboarding->request_code.",
                     ['type' => 'onboarding_request', 'id' => $onboarding->id]
                 );
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingTriggerService triggerNewCycle notification failed', [
                 'onboarding_id' => $onboarding->id,
                 'error' => $e->getMessage(),
@@ -321,7 +332,7 @@ class OnboardingTriggerService
         }
 
         foreach (array_unique(array_filter([$appt->trainer_id, $appt->creator_id])) as $userId) {
-            Cache::store('redis')->forget("onboarding:list:{$userId}");
+            Cache::store('redis')->forget("onboarding:list:$userId");
         }
 
         return $onboarding;
@@ -347,7 +358,7 @@ class OnboardingTriggerService
     {
         $year = now()->year;
         $last = OnboardingRequest::withTrashed()
-            ->where('request_code', 'like', "APT-{$year}-%")
+            ->where('request_code', 'like', "APT-$year-%")
             ->orderByDesc('request_code')
             ->value('request_code');
 

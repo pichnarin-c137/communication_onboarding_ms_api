@@ -11,17 +11,20 @@ use App\Models\OnboardingCompanyInfo;
 use App\Models\OnboardingLesson;
 use App\Models\OnboardingPolicy;
 use App\Models\OnboardingRequest;
+use App\Models\OnboardingRevisionHistory;
 use App\Models\OnboardingSystemAnalysis;
 use App\Models\OnboardingTrainerAssignment;
 use App\Models\User;
 use App\Services\CloudinaryService;
 use App\Services\Notification\NotificationService;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
-class OnboardingService
+readonly class OnboardingService
 {
     public function __construct(
         private OnboardingProgressService $progressService,
@@ -123,11 +126,14 @@ class OnboardingService
         ])->findOrFail($id);
     }
 
+    /**
+     * @throws InvalidStatusTransitionException
+     */
     public function start(OnboardingRequest $onboarding): void
     {
         if ($onboarding->status !== 'pending') {
             throw new InvalidStatusTransitionException(
-                "Onboarding cannot be started — current status is '{$onboarding->status}'."
+                "Onboarding cannot be started — current status is '$onboarding->status'."
             );
         }
 
@@ -135,11 +141,17 @@ class OnboardingService
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
     }
 
-    public function complete(OnboardingRequest $onboarding, User $trainer): void
+    /**
+     * @throws Throwable
+     * @throws InvalidStatusTransitionException
+     * @throws ClientFeedbackRequiredException
+     * @throws OnboardingProgressTooLowException
+     */
+    public function complete(OnboardingRequest $onboarding): void
     {
         if ($onboarding->status !== 'in_progress') {
             throw new InvalidStatusTransitionException(
-                "Onboarding cannot be completed — current status is '{$onboarding->status}'."
+                "Onboarding cannot be completed — current status is '$onboarding->status'."
             );
         }
 
@@ -149,7 +161,7 @@ class OnboardingService
 
         if ($progress < $threshold) {
             throw new OnboardingProgressTooLowException(
-                "Onboarding progress is {$progress}%. At least {$threshold}% is required to mark as complete."
+                "Onboarding progress is $progress%. At least $threshold% is required to mark as complete."
             );
         }
 
@@ -171,12 +183,12 @@ class OnboardingService
                         [$creatorId],
                         'onboarding_completed',
                         'Onboarding Completed',
-                        "Onboarding request {$onboarding->request_code} has been marked as completed.",
+                        "Onboarding request $onboarding->request_code has been marked as completed.",
                         ['type' => 'onboarding_request', 'id' => $onboarding->id]
                     );
                 }
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('OnboardingService complete notification failed', [
+            } catch (Throwable $e) {
+                Log::error('OnboardingService complete notification failed', [
                     'onboarding_id' => $onboarding->id,
                     'error' => $e->getMessage(),
                 ]);
@@ -186,11 +198,14 @@ class OnboardingService
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
     }
 
-    public function cancel(OnboardingRequest $onboarding, ?string $reason): void
+    /**
+     * @throws InvalidStatusTransitionException
+     */
+    public function cancel(OnboardingRequest $onboarding): void
     {
         if (! in_array($onboarding->status, ['pending', 'in_progress', 'on_hold', 'revision_requested'])) {
             throw new InvalidStatusTransitionException(
-                "Onboarding cannot be cancelled — current status is '{$onboarding->status}'."
+                "Onboarding cannot be cancelled — current status is '$onboarding->status'."
             );
         }
 
@@ -198,11 +213,14 @@ class OnboardingService
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
     }
 
-    public function hold(OnboardingRequest $onboarding, string $reason, string $userId): void
+    /**
+     * @throws InvalidStatusTransitionException
+     */
+    public function hold(OnboardingRequest $onboarding, string $reason): void
     {
         if ($onboarding->status !== 'in_progress') {
             throw new InvalidStatusTransitionException(
-                "Onboarding cannot be put on hold — current status is '{$onboarding->status}'."
+                "Onboarding cannot be put on hold — current status is '$onboarding->status'."
             );
         }
 
@@ -222,11 +240,11 @@ class OnboardingService
                     $recipients,
                     'onboarding_held',
                     'Onboarding Put On Hold',
-                    "Onboarding {$onboarding->request_code} has been put on hold. Reason: {$reason}",
+                    "Onboarding $onboarding->request_code has been put on hold. Reason: $reason",
                     ['type' => 'onboarding_request', 'id' => $onboarding->id]
                 );
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingService hold notification failed', [
                 'onboarding_id' => $onboarding->id,
                 'error' => $e->getMessage(),
@@ -236,11 +254,14 @@ class OnboardingService
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
     }
 
-    public function resumeHold(OnboardingRequest $onboarding, string $userId): void
+    /**
+     * @throws InvalidStatusTransitionException
+     */
+    public function resumeHold(OnboardingRequest $onboarding): void
     {
         if ($onboarding->status !== 'on_hold') {
             throw new InvalidStatusTransitionException(
-                "Onboarding cannot be resumed — current status is '{$onboarding->status}'."
+                "Onboarding cannot be resumed — current status is '$onboarding->status'."
             );
         }
 
@@ -257,11 +278,11 @@ class OnboardingService
                     [$creatorId],
                     'onboarding_resumed',
                     'Onboarding Resumed',
-                    "Onboarding {$onboarding->request_code} has been resumed.",
+                    "Onboarding $onboarding->request_code has been resumed.",
                     ['type' => 'onboarding_request', 'id' => $onboarding->id]
                 );
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingService resumeHold notification failed', [
                 'onboarding_id' => $onboarding->id,
                 'error' => $e->getMessage(),
@@ -271,11 +292,14 @@ class OnboardingService
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
     }
 
+    /**
+     * @throws InvalidStatusTransitionException
+     */
     public function requestRevision(OnboardingRequest $onboarding, string $note, string $userId): void
     {
         if ($onboarding->status !== 'in_progress') {
             throw new InvalidStatusTransitionException(
-                "Revision can only be requested when onboarding is in progress — current status is '{$onboarding->status}'."
+                "Revision can only be requested when onboarding is in progress — current status is '$onboarding->status'."
             );
         }
 
@@ -286,7 +310,7 @@ class OnboardingService
             'revision_note' => $note,
         ]);
 
-        \App\Models\OnboardingRevisionHistory::create([
+        OnboardingRevisionHistory::create([
             'onboarding_id' => $onboarding->id,
             'note' => $note,
             'requested_by_user_id' => $userId,
@@ -299,11 +323,11 @@ class OnboardingService
                     [$onboarding->trainer_id],
                     'onboarding_revision_requested',
                     'Revision Requested',
-                    "A revision has been requested for onboarding {$onboarding->request_code}. Note: {$note}",
+                    "A revision has been requested for onboarding $onboarding->request_code. Note: $note",
                     ['type' => 'onboarding_request', 'id' => $onboarding->id]
                 );
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingService requestRevision notification failed', [
                 'onboarding_id' => $onboarding->id,
                 'error' => $e->getMessage(),
@@ -313,11 +337,14 @@ class OnboardingService
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
     }
 
+    /**
+     * @throws InvalidStatusTransitionException
+     */
     public function acknowledgeRevision(OnboardingRequest $onboarding, string $userId): void
     {
         if ($onboarding->status !== 'revision_requested') {
             throw new InvalidStatusTransitionException(
-                "Cannot acknowledge revision — current status is '{$onboarding->status}'."
+                "Cannot acknowledge revision — current status is '$onboarding->status'."
             );
         }
 
@@ -326,7 +353,7 @@ class OnboardingService
             'status' => 'in_progress',
         ]);
 
-        $latestRevision = \App\Models\OnboardingRevisionHistory::where('onboarding_id', $onboarding->id)
+        $latestRevision = OnboardingRevisionHistory::where('onboarding_id', $onboarding->id)
             ->whereNull('acknowledged_at')
             ->orderByDesc('requested_at')
             ->first();
@@ -343,11 +370,11 @@ class OnboardingService
                     [$requesterId],
                     'onboarding_revision_acknowledged',
                     'Revision Acknowledged',
-                    "The trainer has acknowledged the revision request for onboarding {$onboarding->request_code}.",
+                    "The trainer has acknowledged the revision request for onboarding $onboarding->request_code.",
                     ['type' => 'onboarding_request', 'id' => $onboarding->id]
                 );
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingService acknowledgeRevision notification failed', [
                 'onboarding_id' => $onboarding->id,
                 'error' => $e->getMessage(),
@@ -357,11 +384,14 @@ class OnboardingService
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
     }
 
+    /**
+     * @throws InvalidStatusTransitionException
+     */
     public function reopen(OnboardingRequest $onboarding, string $userId): void
     {
         if ($onboarding->status !== 'cancelled') {
             throw new InvalidStatusTransitionException(
-                "Onboarding cannot be reopened — current status is '{$onboarding->status}'."
+                "Onboarding cannot be reopened — current status is '$onboarding->status'."
             );
         }
 
@@ -377,11 +407,11 @@ class OnboardingService
                     [$onboarding->trainer_id],
                     'onboarding_reopened',
                     'Onboarding Reopened',
-                    "Onboarding {$onboarding->request_code} has been reopened. Please resume your work.",
+                    "Onboarding $onboarding->request_code has been reopened. Please resume your work.",
                     ['type' => 'onboarding_request', 'id' => $onboarding->id]
                 );
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingService reopen notification failed', [
                 'onboarding_id' => $onboarding->id,
                 'error' => $e->getMessage(),
@@ -391,6 +421,10 @@ class OnboardingService
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
     }
 
+    /**
+     * @throws Throwable
+     * @throws InvalidStatusTransitionException
+     */
     public function reassignTrainer(OnboardingRequest $onboarding, string $newTrainerId, string $adminId, ?string $notes): void
     {
         $newTrainer = User::with('role')->findOrFail($newTrainerId);
@@ -432,7 +466,7 @@ class OnboardingService
                     [$oldTrainerId],
                     'onboarding_trainer_reassigned',
                     'Onboarding Reassigned',
-                    "You have been removed from onboarding {$onboarding->request_code}.",
+                    "You have been removed from onboarding $onboarding->request_code.",
                     ['type' => 'onboarding_request', 'id' => $onboarding->id]
                 );
             }
@@ -441,10 +475,10 @@ class OnboardingService
                 [$newTrainerId],
                 'onboarding_trainer_reassigned',
                 'Onboarding Assigned',
-                "You have been assigned to onboarding {$onboarding->request_code}.",
+                "You have been assigned to onboarding $onboarding->request_code.",
                 ['type' => 'onboarding_request', 'id' => $onboarding->id]
             );
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingService reassignTrainer notification failed', [
                 'onboarding_id' => $onboarding->id,
                 'error' => $e->getMessage(),
@@ -453,21 +487,24 @@ class OnboardingService
 
         // Invalidate both trainers' caches
         if ($oldTrainerId) {
-            Cache::store('redis')->forget("onboarding:list:{$oldTrainerId}");
+            Cache::store('redis')->forget("onboarding:list:$oldTrainerId");
         }
-        Cache::store('redis')->forget("onboarding:list:{$newTrainerId}");
+        Cache::store('redis')->forget("onboarding:list:$newTrainerId");
         $this->invalidateOnboarding($onboarding->id, $newTrainerId);
     }
 
-    public function setDueDate(OnboardingRequest $onboarding, string $dueDate, string $userId): void
+    /**
+     * @throws InvalidStatusTransitionException
+     */
+    public function setDueDate(OnboardingRequest $onboarding, string $dueDate): void
     {
         if (in_array($onboarding->status, ['completed', 'cancelled'])) {
             throw new InvalidStatusTransitionException(
-                "Due date cannot be set — onboarding is '{$onboarding->status}'."
+                "Due date cannot be set — onboarding is '$onboarding->status'."
             );
         }
 
-        $parsed = \Carbon\Carbon::parse($dueDate);
+        $parsed = Carbon::parse($dueDate);
 
         $onboarding->update(['due_date' => $parsed->toDateString()]);
 
@@ -477,11 +514,11 @@ class OnboardingService
                     [$onboarding->trainer_id],
                     'onboarding_due_date_set',
                     'Due Date Updated',
-                    "The due date for onboarding {$onboarding->request_code} has been set to {$parsed->toDateString()}.",
+                    "The due date for onboarding $onboarding->request_code has been set to {$parsed->toDateString()}.",
                     ['type' => 'onboarding_request', 'id' => $onboarding->id]
                 );
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingService setDueDate notification failed', [
                 'onboarding_id' => $onboarding->id,
                 'error' => $e->getMessage(),
@@ -642,6 +679,9 @@ class OnboardingService
         return $policy->fresh();
     }
 
+    /**
+     * @throws DefaultPolicyCannotBeRemovedException
+     */
     public function removePolicy(OnboardingPolicy $policy): void
     {
         if ($policy->is_default) {
@@ -685,6 +725,9 @@ class OnboardingService
         return $lesson;
     }
 
+    /**
+     * @throws LessonLockedAfterSendException
+     */
     public function updateLesson(OnboardingLesson $lesson, array $data): OnboardingLesson
     {
         if ($lesson->is_sent) {
@@ -697,6 +740,9 @@ class OnboardingService
         return $lesson->fresh();
     }
 
+    /**
+     * @throws LessonLockedAfterSendException
+     */
     public function deleteLesson(OnboardingLesson $lesson): void
     {
         if ($lesson->is_sent) {
@@ -711,6 +757,9 @@ class OnboardingService
         $this->invalidateOnboarding($onboardingId, $trainerId);
     }
 
+    /**
+     * @throws LessonLockedAfterSendException
+     */
     public function sendLesson(OnboardingLesson $lesson, string $userId): void
     {
         $this->lessonSendService->send($lesson, $userId);
@@ -729,7 +778,7 @@ class OnboardingService
         if ($result) {
             $contentArray[$urlKey] = $result['url'];
         } else {
-            Log::warning("OnboardingService: {$category} Cloudinary upload failed.", [
+            Log::warning("OnboardingService: $category Cloudinary upload failed.", [
                 'onboarding_id' => $onboardingId,
             ]);
         }
@@ -749,7 +798,7 @@ class OnboardingService
     public function invalidateOnboarding(string $onboardingId, ?string $trainerId = null): void
     {
         Cache::store('redis')->forget($this->showCacheKey($onboardingId));
-        Cache::store('redis')->forget("onboarding:progress:{$onboardingId}");
+        Cache::store('redis')->forget("onboarding:progress:$onboardingId");
 
         if ($trainerId) {
             Cache::store('redis')->forget($this->listCacheKey($trainerId));
@@ -758,11 +807,11 @@ class OnboardingService
 
     private function listCacheKey(string $userId): string
     {
-        return "onboarding:list:{$userId}";
+        return "onboarding:list:$userId";
     }
 
     private function showCacheKey(string $id): string
     {
-        return "onboarding:show:{$id}";
+        return "onboarding:show:$id";
     }
 }

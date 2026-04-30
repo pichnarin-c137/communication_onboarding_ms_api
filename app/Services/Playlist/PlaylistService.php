@@ -9,14 +9,14 @@ use Illuminate\Support\Facades\DB;
 
 class PlaylistService
 {
-    // 
+    //
     // Read operations (cached)
-    // 
+    //
 
     public function list(string $userId, array $filters = [], int $perPage = 15, int $page = 1): array
     {
         $cacheKey = $this->listCacheKey($userId);
-        $ttl      = config('coms.playlist_list_ttl', 300);
+        $ttl = config('coms.playlist_list_ttl', 300);
 
         $all = Cache::store('redis')->remember($cacheKey, $ttl, function () use ($userId) {
             return Playlist::with(['creator'])
@@ -27,7 +27,7 @@ class PlaylistService
         });
 
         $filtered = $all
-            ->when(isset($filters['is_public']), fn($c) => $c->where('is_public', (bool) $filters['is_public']))
+            ->when(isset($filters['is_public']), fn ($c) => $c->where('is_public', (bool) $filters['is_public']))
             ->values();
 
         $total = $filtered->count();
@@ -36,12 +36,12 @@ class PlaylistService
         return [
             'data' => $items,
             'meta' => [
-                'total'        => $total,
-                'per_page'     => $perPage,
+                'total' => $total,
+                'per_page' => $perPage,
                 'current_page' => $page,
-                'last_page'    => max(1, (int) ceil($total / $perPage)),
-                'from'         => $total > 0 ? ($page - 1) * $perPage + 1 : 0,
-                'to'           => min($page * $perPage, $total),
+                'last_page' => max(1, (int) ceil($total / $perPage)),
+                'from' => $total > 0 ? ($page - 1) * $perPage + 1 : 0,
+                'to' => min($page * $perPage, $total),
             ],
         ];
     }
@@ -59,17 +59,17 @@ class PlaylistService
         return $playlist;
     }
 
-    // 
+    //
     // Write operations
-    // 
+    //
 
     public function create(array $data, string $userId): Playlist
     {
         $playlist = Playlist::create([
-            'title'       => $data['title'],
+            'title' => $data['title'],
             'description' => $data['description'] ?? null,
-            'is_public'   => $data['is_public'] ?? false,
-            'created_by'  => $userId,
+            'is_public' => $data['is_public'] ?? false,
+            'created_by' => $userId,
         ]);
 
         $this->invalidateListCache($userId);
@@ -80,11 +80,11 @@ class PlaylistService
     public function update(Playlist $playlist, array $data, string $userId): Playlist
     {
         $updateData = array_filter([
-            'title'       => $data['title'] ?? null,
+            'title' => $data['title'] ?? null,
             'description' => array_key_exists('description', $data) ? $data['description'] : null,
-            'is_public'   => $data['is_public'] ?? null,
-            'updated_by'  => $userId,
-        ], fn($v) => ! is_null($v));
+            'is_public' => $data['is_public'] ?? null,
+            'updated_by' => $userId,
+        ], fn ($v) => ! is_null($v));
 
         // description can be explicitly set to null — handle that case separately
         if (array_key_exists('description', $data) && $data['description'] === null) {
@@ -115,9 +115,9 @@ class PlaylistService
         $this->invalidate($playlist->id, $playlist->created_by);
     }
 
-    // 
+    //
     // Cache helpers
-    // 
+    //
 
     public function invalidate(string $playlistId, string $userId): void
     {

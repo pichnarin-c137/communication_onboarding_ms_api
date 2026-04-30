@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\TrainerLocationPing;
 use Illuminate\Console\Command;
 
+// Daily at 03:00 late night clean up
 class CleanupOldPingsCommand extends Command
 {
     protected $signature = 'tracking:cleanup-pings';

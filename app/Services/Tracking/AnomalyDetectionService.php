@@ -9,6 +9,7 @@ use App\Models\TrainerActivityLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
+use Throwable;
 
 class AnomalyDetectionService
 {
@@ -39,7 +40,7 @@ class AnomalyDetectionService
             $reasons[] = 'accuracy_zero';
         }
         if ($speed !== null && $speed > $maxSpeedKmh) {
-            $reasons[] = "speed_{$speed}_exceeds_{$maxSpeedKmh}";
+            $reasons[] = "speed_{$speed}_exceeds_$maxSpeedKmh";
         }
 
         if (empty($reasons)) {
@@ -196,10 +197,10 @@ class AnomalyDetectionService
 
         foreach ($upcomingAppointments as $appointment) {
             $scheduledStart = Carbon::parse(
-                $appointment->scheduled_date->toDateString() . ' ' . $appointment->scheduled_start_time
+                $appointment->scheduled_date->toDateString().' '.$appointment->scheduled_start_time
             );
 
-            $minutesUntilStart = now()->diffInMinutes($scheduledStart, false);
+            $minutesUntilStart = now()->diffInMinutes($scheduledStart);
 
             if ($minutesUntilStart > 0 && $minutesUntilStart <= $warningMinutes) {
                 $statusJson = Redis::get(TrainerTrackingService::statusKey($appointment->trainer_id));
@@ -217,7 +218,7 @@ class AnomalyDetectionService
                         'low',
                         [
                             'appointment_id' => $appointment->id,
-                            'scheduled_start' => $scheduledStart->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP'),
+                            'scheduled_start' => $scheduledStart->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh'))->format('Y-m-d\TH:i:s.uP'),
                             'minutes_until_start' => $minutesUntilStart,
                         ]
                     );
@@ -248,7 +249,7 @@ class AnomalyDetectionService
             return;
         }
 
-        $alert = AnomalyAlert::create([
+        AnomalyAlert::create([
             'trainer_id' => $trainerId,
             'customer_id' => $customerId,
             'type' => $type,
@@ -258,7 +259,7 @@ class AnomalyDetectionService
 
         try {
             AnomalyDetected::dispatch($trainerId, $type, $severity, $details);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('AnomalyDetected broadcast failed', [
                 'trainer_id' => $trainerId,
                 'type' => $type,

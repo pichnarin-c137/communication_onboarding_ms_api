@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
+use Throwable;
 
 class TrainerTrackingService
 {
@@ -20,22 +21,22 @@ class TrainerTrackingService
     public const KEY_GEOFENCE_TARGETS = 'geofence:targets';
 
     public function __construct(
-        private AnomalyDetectionService $anomalyService,
+        private readonly AnomalyDetectionService $anomalyService,
     ) {}
 
     public static function trailKey(string $trainerId): string
     {
-        return "trainer:{$trainerId}:trail";
+        return "trainer:$trainerId:trail";
     }
 
     public static function statusKey(string $trainerId): string
     {
-        return "trainer:{$trainerId}:status";
+        return "trainer:$trainerId:status";
     }
 
     public static function etaKey(string $trainerId): string
     {
-        return "trainer:{$trainerId}:eta";
+        return "trainer:$trainerId:eta";
     }
 
     private const ACTIVE_TRACKING_STATUSES = ['en_route', 'arrived', 'in_session'];
@@ -85,7 +86,7 @@ class TrainerTrackingService
         if ($speed !== null && $speed > $maxSpeedKmh) {
             $this->anomalyService->checkGpsSpoofing($trainerId, $data);
             throw new LocationPingRejectedException(
-                "Speed {$speed} km/h exceeds maximum {$maxSpeedKmh} km/h.",
+                "Speed $speed km/h exceeds maximum $maxSpeedKmh km/h.",
                 context: ['trainer_id' => $trainerId, 'speed' => $speed]
             );
         }
@@ -104,7 +105,7 @@ class TrainerTrackingService
             'lng' => $lng,
             'accuracy' => $accuracy,
             'speed' => $speed,
-            'timestamp' => $timestamp->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP'),
+            'timestamp' => $timestamp->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh'))->format('Y-m-d\TH:i:s.uP'),
         ]);
         Redis::rpush(self::trailKey($trainerId), $breadcrumb);
 
@@ -119,9 +120,9 @@ class TrainerTrackingService
                 $lng,
                 $speed,
                 $accuracy,
-                $timestamp->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP')
+                $timestamp->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh'))->format('Y-m-d\TH:i:s.uP')
             );
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('TrainerLocationUpdated broadcast failed', [
                 'trainer_id' => $trainerId,
                 'error' => $e->getMessage(),
@@ -184,7 +185,7 @@ class TrainerTrackingService
                         'detection_method' => 'geofence',
                     ]);
                 }
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::error('Geofence auto-arrival failed', [
                     'trainer_id' => $trainerId,
                     'customer_id' => $targetCustomerId,

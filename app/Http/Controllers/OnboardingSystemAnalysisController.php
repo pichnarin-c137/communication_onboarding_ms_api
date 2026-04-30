@@ -10,7 +10,7 @@ use Illuminate\Http\JsonResponse;
 class OnboardingSystemAnalysisController extends Controller
 {
     public function __construct(
-        private OnboardingService $onboardingService
+        private readonly OnboardingService $onboardingService
     ) {}
 
     public function show(string $onboardingId): JsonResponse

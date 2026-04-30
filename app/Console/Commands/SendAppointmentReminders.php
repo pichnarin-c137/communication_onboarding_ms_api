@@ -7,6 +7,7 @@ use App\Models\Appointment;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 
+// every 5 min Continuously — catches appointments entering the 1h and 24h windows
 class SendAppointmentReminders extends Command
 {
     protected $signature = 'appointment:send-reminders';
@@ -40,7 +41,8 @@ class SendAppointmentReminders extends Command
             ->get()
             ->filter(function (Appointment $appt) use ($windowStart, $windowEnd) {
                 $scheduledAt = Carbon::parse(
-                    $appt->scheduled_date->format('Y-m-d').' '.$appt->scheduled_start_time
+                    $appt->scheduled_date->format('Y-m-d').' '.$appt->scheduled_start_time,
+                    config('coms.user_settings.defaults.timezone')
                 );
 
                 return $scheduledAt->between($windowStart, $windowEnd);

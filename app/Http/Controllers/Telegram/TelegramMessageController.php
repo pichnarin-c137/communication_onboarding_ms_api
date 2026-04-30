@@ -18,7 +18,7 @@ class TelegramMessageController extends Controller
     public function index(Request $request): JsonResponse
     {
         $perPage = (int) min(max($request->query('per_page', 15), 1), 100);
-        $page    = (int) max($request->query('page', 1), 1);
+        $page = (int) max($request->query('page', 1), 1);
 
         $query = TelegramMessage::with('telegramGroup')
             ->when($request->query('telegram_group_id'), fn ($q, $v) => $q->where('telegram_group_id', $v))
@@ -31,27 +31,27 @@ class TelegramMessageController extends Controller
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
         $data = $paginator->getCollection()->map(fn (TelegramMessage $msg) => [
-            'id'            => $msg->id,
-            'group_name'    => $msg->telegramGroup?->group_name,
-            'message_type'  => $msg->message_type,
-            'content'       => $msg->message_body,
-            'language'      => $msg->language,
-            'status'        => $msg->status,
-            'sent_at'       => $msg->sent_at,
+            'id' => $msg->id,
+            'group_name' => $msg->telegramGroup?->group_name,
+            'message_type' => $msg->message_type,
+            'content' => $msg->message_body,
+            'language' => $msg->language,
+            'status' => $msg->status,
+            'sent_at' => $msg->sent_at,
             'error_message' => $msg->error_message,
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Telegram messages retrieved successfully.',
-            'data'    => $data,
-            'meta'    => [
-                'total'        => $paginator->total(),
-                'per_page'     => $paginator->perPage(),
+            'data' => $data,
+            'meta' => [
+                'total' => $paginator->total(),
+                'per_page' => $paginator->perPage(),
                 'current_page' => $paginator->currentPage(),
-                'last_page'    => $paginator->lastPage(),
-                'from'         => $paginator->firstItem() ?? 0,
-                'to'           => $paginator->lastItem() ?? 0,
+                'last_page' => $paginator->lastPage(),
+                'from' => $paginator->firstItem() ?? 0,
+                'to' => $paginator->lastItem() ?? 0,
             ],
         ]);
     }

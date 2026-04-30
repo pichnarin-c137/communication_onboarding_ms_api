@@ -6,8 +6,9 @@ use App\Jobs\NotifyOnboardingStageCompletion;
 use App\Models\OnboardingRequest;
 use App\Services\Telegram\TelegramGroupService;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
-class OnboardingProgressService
+readonly class OnboardingProgressService
 {
     public function __construct(
         private TelegramGroupService $telegramGroupService,
@@ -81,26 +82,26 @@ class OnboardingProgressService
      * Fire a Telegram notification when an onboarding step is completed.
      * Failures are caught and logged — they must never break the core operation.
      *
-     * @param  OnboardingRequest  $onboarding   The onboarding request the step belongs to
-     * @param  string             $stepName     Human-readable step name (e.g. "Company Information")
-     * @param  float              $progress     Current progress percentage (0–100)
+     * @param  OnboardingRequest  $onboarding  The onboarding request the step belongs to
+     * @param  string  $stepName  Human-readable step name (e.g. "Company Information")
+     * @param  float  $progress  Current progress percentage (0–100)
      */
     public function notifyStepCompleted(OnboardingRequest $onboarding, string $stepName, float $progress): void
     {
         try {
-            $clientId   = $onboarding->client_id;
+            $clientId = $onboarding->client_id;
             $clientName = $onboarding->client?->company_name ?? 'Client';
 
             $this->telegramGroupService->notifyClient($clientId, 'onboarding_step_completed', [
                 'client_name' => $clientName,
-                'step_name'   => $stepName,
-                'progress'    => number_format($progress, 2),
+                'step_name' => $stepName,
+                'progress' => number_format($progress, 2),
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingProgressService Telegram notification failed', [
                 'onboarding_id' => $onboarding->id,
-                'step_name'     => $stepName,
-                'error'         => $e->getMessage(),
+                'step_name' => $stepName,
+                'error' => $e->getMessage(),
             ]);
         }
 

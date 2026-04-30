@@ -2,20 +2,26 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\MailDeliveryException;
+use App\Exceptions\UserNotFoundException;
 use App\Http\Requests\AdminCreateUserRequest;
 use App\Http\Requests\UpdateUserInformationRequest;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Random\RandomException;
+use Throwable;
 
 class UserController extends Controller
 {
     public function __construct(
-        private UserService $userService
+        private readonly UserService $userService
     ) {}
 
     /**
      * Get logged-in user profile
+     *
+     * @throws UserNotFoundException
      */
     public function getProfile(Request $request): JsonResponse
     {
@@ -30,6 +36,8 @@ class UserController extends Controller
 
     /**
      * Get user by Id
+     *
+     * @throws UserNotFoundException
      */
     public function getUserById(string $userId): JsonResponse
     {
@@ -118,12 +126,16 @@ class UserController extends Controller
             'contact_social_media' => $request->input('contact_social_media'),
         ];
 
-        $user = $this->userService->createUser(
-            $userData,
-            $credentialData,
-            $personalInfoData,
-            $emergencyContactData
-        );
+        try {
+            $user = $this->userService->createUser(
+                $userData,
+                $credentialData,
+                $personalInfoData,
+                $emergencyContactData
+            );
+        } catch (MailDeliveryException|RandomException|Throwable) {
+
+        }
 
         return response()->json([
             'success' => true,
@@ -137,6 +149,8 @@ class UserController extends Controller
 
     /**
      * Soft delete user (admin only)
+     *
+     * @throws UserNotFoundException
      */
     public function softDeleteUser(string $userId): JsonResponse
     {
@@ -150,6 +164,8 @@ class UserController extends Controller
 
     /**
      * Hard delete user permanently (admin only)
+     *
+     * @throws UserNotFoundException
      */
     public function hardDeleteUser(string $userId): JsonResponse
     {
@@ -163,6 +179,8 @@ class UserController extends Controller
 
     /**
      * Restore soft deleted user (admin only)
+     *
+     * @throws UserNotFoundException
      */
     public function restoreUser(string $userId): JsonResponse
     {
@@ -213,12 +231,16 @@ class UserController extends Controller
             ]);
         }
 
-        $user = $this->userService->updateUserInformation(
-            $userId,
-            $userData,
-            $personalInfoData,
-            $emergencyContactData
-        );
+        try {
+            $user = $this->userService->updateUserInformation(
+                $userId,
+                $userData,
+                $personalInfoData,
+                $emergencyContactData
+            );
+        } catch (UserNotFoundException|Throwable) {
+
+        }
 
         return response()->json([
             'success' => true,

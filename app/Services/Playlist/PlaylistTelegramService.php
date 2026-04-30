@@ -11,11 +11,14 @@ use App\Models\PlaylistVideo;
 
 class PlaylistTelegramService
 {
+    /**
+     * @throws PlaylistVideoNotFoundException
+     */
     public function sendVideo(Playlist $playlist, PlaylistVideo $video, string $chatId, ?string $message = null): void
     {
         if ($video->playlist_id !== $playlist->id) {
             throw new PlaylistVideoNotFoundException(
-                "Video '{$video->id}' does not belong to playlist '{$playlist->id}'.",
+                "Video '$video->id' does not belong to playlist '$playlist->id'.",
                 context: ['playlist_id' => $playlist->id, 'video_id' => $video->id]
             );
         }
@@ -24,6 +27,9 @@ class PlaylistTelegramService
             ->onQueue(config('coms.telegram_send_queue', 'high'));
     }
 
+    /**
+     * @throws PlaylistEmptyException
+     */
     public function sendPlaylist(Playlist $playlist, string $chatId, ?string $message = null): void
     {
         if ($playlist->videos()->count() === 0) {

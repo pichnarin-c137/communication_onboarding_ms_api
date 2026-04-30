@@ -17,11 +17,14 @@ class AppointmentStatusService
         'rescheduled' => [],
     ];
 
+    /**
+     * @throws InvalidStatusTransitionException
+     */
     public function validateTransition(Appointment $appt, string $to): void
     {
         if (! $this->canTransition($appt, $to)) {
             throw new InvalidStatusTransitionException(
-                "Cannot transition appointment from '{$appt->status}' to '{$to}'."
+                "Cannot transition appointment from '$appt->status' to '$to'."
             );
         }
     }
@@ -33,6 +36,9 @@ class AppointmentStatusService
         return in_array($to, $allowed, true);
     }
 
+    /**
+     * @throws LeaveOfficeNotAllowedException
+     */
     public function validateLeaveOffice(Appointment $appt): void
     {
         if ($appt->location_type === 'online') {

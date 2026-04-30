@@ -7,13 +7,17 @@ use App\Models\Media;
 use App\Services\CloudinaryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 class MediaController extends Controller
 {
     public function __construct(
-        private CloudinaryService $cloudinaryService
+        private readonly CloudinaryService $cloudinaryService
     ) {}
 
+    /**
+     * @throws Throwable
+     */
     public function upload(UploadMediaRequest $request): JsonResponse
     {
         $file = $request->file('file');
@@ -64,7 +68,7 @@ class MediaController extends Controller
                 'media_category' => $category,
                 'uploaded_by_user_id' => $request->get('auth_user_id'),
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Storage::disk('public')->delete($storedPath);
             throw $e;
         }

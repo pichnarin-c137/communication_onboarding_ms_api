@@ -4,6 +4,7 @@ namespace App\Services\Notification;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class TelegramService
 {
@@ -29,18 +30,18 @@ class TelegramService
 
         try {
             $response = Http::post(
-                "https://api.telegram.org/bot{$this->botToken}/sendMessage",
+                "https://api.telegram.org/bot$this->botToken/sendMessage",
                 [
                     'chat_id' => $chatId,
-                    'text'    => $text,
+                    'text' => $text,
                 ]
             );
 
             return $response->successful();
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('TelegramService: failed to send direct message', [
                 'chat_id' => $chatId,
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return false;

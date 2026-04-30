@@ -9,6 +9,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RoleMiddleware
 {
+    /**
+     * @throws AdminOnlyException
+     */
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
         $role = $request->get('auth_role');

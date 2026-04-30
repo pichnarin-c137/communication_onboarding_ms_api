@@ -6,6 +6,9 @@ use App\Services\Appointment\AppointmentConflictService;
 use App\Services\Appointment\AppointmentService;
 use App\Services\Appointment\AppointmentStatusService;
 use App\Services\Appointment\DemoCompletionService;
+use App\Services\Business\BusinessTypeService;
+use App\Services\Business\CompanyService;
+use App\Services\Business\DocumentExtractionService;
 use App\Services\Logging\ActivityLogger;
 use App\Services\Notification\NotificationService;
 use App\Services\Notification\TelegramService;
@@ -15,15 +18,12 @@ use App\Services\Onboarding\OnboardingProgressService;
 use App\Services\Onboarding\OnboardingService;
 use App\Services\Onboarding\OnboardingSlaService;
 use App\Services\Onboarding\OnboardingTriggerService;
-use App\Services\Telegram\TelegramGroupService;
-use App\Services\Telegram\TelegramMessageTemplate;
-use App\Services\Telegram\TelegramWebhookService;
-use App\Services\Business\BusinessTypeService;
-use App\Services\Business\CompanyService;
-use App\Services\Business\DocumentExtractionService;
 use App\Services\Playlist\PlaylistService;
 use App\Services\Playlist\PlaylistTelegramService;
 use App\Services\Playlist\PlaylistVideoService;
+use App\Services\Telegram\TelegramGroupService;
+use App\Services\Telegram\TelegramMessageTemplate;
+use App\Services\Telegram\TelegramWebhookService;
 use App\Services\Tracking\AnomalyDetectionService;
 use App\Services\Tracking\EtaService;
 use App\Services\Tracking\TrainerStatusService;
@@ -34,6 +34,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Pusher\Pusher;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -88,17 +89,17 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(DocumentExtractionService::class);
 
         // Broadcasting
-        $this->app->singleton(\Pusher\Pusher::class, function () {
-            return new \Pusher\Pusher(
+        $this->app->singleton(Pusher::class, function () {
+            return new Pusher(
                 config('reverb.apps.apps.0.key'),
                 config('reverb.apps.apps.0.secret'),
                 config('reverb.apps.apps.0.app_id'),
                 [
-                    'host'      => 'reverb',
-                    'port'      => 8080,
-                    'scheme'    => 'http',
+                    'host' => 'reverb',
+                    'port' => 8080,
+                    'scheme' => 'http',
                     'encrypted' => false,
-                    'useTLS'    => false,
+                    'useTLS' => false,
                 ]
             );
         });
@@ -112,7 +113,7 @@ class AppServiceProvider extends ServiceProvider
         Carbon::serializeUsing(function (Carbon $carbon) {
             $tz = app()->bound('request.timezone')
                 ? app('request.timezone')
-                : 'Asia/Phnom_Penh';
+                : config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh');
 
             return $carbon->setTimezone($tz)->format('Y-m-d\TH:i:s.uP');
         });
@@ -193,8 +194,8 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(config('coms.document_extract_rate_limit', 10))
                 ->by($request->get('auth_user_id', $request->ip()))
                 ->response(fn () => response()->json([
-                    'success'    => false,
-                    'message'    => 'Too many document extraction requests. Please wait.',
+                    'success' => false,
+                    'message' => 'Too many document extraction requests. Please wait.',
                     'error_code' => 'RATE_LIMIT_EXCEEDED',
                 ], 429)->withHeaders(['Retry-After' => 60]));
         });

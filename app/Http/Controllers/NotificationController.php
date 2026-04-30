@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 class NotificationController extends Controller
 {
     public function __construct(
-        private NotificationService $notificationService
+        private readonly NotificationService $notificationService
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -53,7 +53,7 @@ class NotificationController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "{$count} notifications marked as read",
+            'message' => "$count notifications marked as read",
             'data' => ['updated_count' => $count],
         ]);
     }

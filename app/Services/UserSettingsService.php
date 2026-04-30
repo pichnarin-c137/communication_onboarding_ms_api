@@ -63,6 +63,6 @@ class UserSettingsService
 
     private function cacheKey(string $userId): string
     {
-        return "user_settings:{$userId}";
+        return "user_settings:$userId";
     }
 }

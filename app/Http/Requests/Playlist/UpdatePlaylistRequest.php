@@ -16,19 +16,19 @@ class UpdatePlaylistRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'title'       => ['sometimes', 'required', 'string', 'max:255'],
+            'title' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
-            'is_public'   => ['sometimes', 'boolean'],
+            'is_public' => ['sometimes', 'boolean'],
         ];
     }
 
     protected function failedValidation(Validator $validator): void
     {
         throw new HttpResponseException(response()->json([
-            'success'    => false,
-            'message'    => 'Validation errors.',
+            'success' => false,
+            'message' => 'Validation errors.',
             'error_code' => 'VALIDATION_ERROR',
-            'errors'     => $validator->errors(),
+            'errors' => $validator->errors(),
         ], 422));
     }
 }

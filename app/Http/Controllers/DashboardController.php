@@ -14,7 +14,7 @@ class DashboardController extends Controller
     public function trainerDashboard(Request $request): JsonResponse
     {
         $userId = $request->get('auth_user_id');
-        $cacheKey = "dashboard:trainer:{$userId}";
+        $cacheKey = "dashboard:trainer:$userId";
         $ttl = config('coms.cache.dashboard_ttl', 180);
 
         $data = Cache::store('redis')->remember($cacheKey, $ttl, function () use ($userId) {
@@ -76,7 +76,7 @@ class DashboardController extends Controller
     public function saleDashboard(Request $request): JsonResponse
     {
         $userId = $request->get('auth_user_id');
-        $cacheKey = "dashboard:sale:{$userId}";
+        $cacheKey = "dashboard:sale:$userId";
         $ttl = config('coms.cache.dashboard_ttl', 180);
 
         $data = Cache::store('redis')->remember($cacheKey, $ttl, function () use ($userId) {

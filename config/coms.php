@@ -121,7 +121,7 @@ return [
             'in_app_notifications' => true,
             'telegram_notifications' => true,
             'language' => 'en',
-            'timezone' => 'Asia/Phnom_Penh',
+            'timezone' => env('COMS_DEFAULT_TIMEZONE', 'Asia/Phnom_Penh'),
             'items_per_page' => 15,
             'theme' => 'light',
             'quiet_hours_enabled' => false,

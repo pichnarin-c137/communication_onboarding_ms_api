@@ -9,6 +9,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class AdminOnly
 {
+    /**
+     * @throws AdminOnlyException
+     */
     public function handle(Request $request, Closure $next): Response
     {
         $role = $request->get('auth_role');

@@ -5,7 +5,6 @@ namespace App\Services\Onboarding;
 use App\Jobs\SendOnboardingSlaWarning;
 use App\Models\OnboardingRequest;
 use App\Services\Notification\NotificationService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class OnboardingSlaService
@@ -17,7 +16,7 @@ class OnboardingSlaService
     public function checkAllBreaches(): int
     {
         $breached = OnboardingRequest::whereNotNull('due_date')
-            ->whereColumn('due_date', '<', \Illuminate\Support\Facades\DB::raw('CURRENT_DATE'))
+            ->whereDate('due_date', '<', now()->toDateString())
             ->whereNull('sla_breached_at')
             ->whereNotIn('status', ['completed', 'cancelled'])
             ->get();

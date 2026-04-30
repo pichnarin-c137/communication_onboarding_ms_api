@@ -5,12 +5,14 @@ namespace App\Jobs;
 use App\Models\Appointment;
 use App\Models\User;
 use App\Services\Notification\NotificationService;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class NotifyAppointmentNoShow implements ShouldQueue
 {
@@ -39,8 +41,8 @@ class NotifyAppointmentNoShow implements ShouldQueue
 
         $scheduledAt = $this->appointment->scheduled_start_time;
         $minutesLate = now()->diffInMinutes(
-            \Carbon\Carbon::parse(
-                $this->appointment->scheduled_date->format('Y-m-d') . ' ' . $scheduledAt
+            Carbon::parse(
+                $this->appointment->scheduled_date->format('Y-m-d').' '.$scheduledAt
             )
         );
 
@@ -48,16 +50,16 @@ class NotifyAppointmentNoShow implements ShouldQueue
             $adminIds,
             'appointment_no_show',
             'Appointment No-Show Alert',
-            "Trainer has not started appointment {$this->appointment->appointment_code} — scheduled at {$scheduledAt}, now {$minutesLate} minutes overdue.",
+            "Trainer has not started appointment {$this->appointment->appointment_code} — scheduled at $scheduledAt, now $minutesLate minutes overdue.",
             ['type' => 'appointment', 'id' => $this->appointment->id],
         );
     }
 
-    public function failed(\Throwable $e): void
+    public function failed(Throwable $e): void
     {
         Log::error('NotifyAppointmentNoShow: failed after all retries.', [
             'appointment_id' => $this->appointment->id,
-            'error'          => $e->getMessage(),
+            'error' => $e->getMessage(),
         ]);
     }
 }

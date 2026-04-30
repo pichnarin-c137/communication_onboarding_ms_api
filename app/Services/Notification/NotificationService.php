@@ -8,7 +8,7 @@ use App\Services\UserSettingsService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
-class NotificationService
+readonly class NotificationService
 {
     public function __construct(
         private UserSettingsService $userSettingsService
@@ -60,7 +60,7 @@ class NotificationService
         $now = now();
         $rows = array_map(function ($contactId) use ($type, $title, $message, $now) {
             return [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'user_id' => null,
                 'client_contact_id' => $contactId,
                 'type' => $type,

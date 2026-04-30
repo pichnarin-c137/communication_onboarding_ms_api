@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 class TelegramGroupController extends Controller
 {
     public function __construct(
-        private TelegramGroupService $groupService,
+        private readonly TelegramGroupService $groupService,
     ) {}
 
     /**

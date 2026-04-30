@@ -6,8 +6,9 @@ use App\Events\TrainerEtaUpdated;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
+use Throwable;
 
-class EtaService
+readonly class EtaService
 {
     public function __construct(
         private TrainerTrackingService $trackingService,
@@ -27,7 +28,7 @@ class EtaService
 
         try {
             $response = Http::timeout(10)->get(
-                "{$baseUrl}/route/v1/driving/{$fromLng},{$fromLat};{$toLng},{$toLat}",
+                "$baseUrl/route/v1/driving/$fromLng,$fromLat;$toLng,$toLat",
                 [
                     'overview' => 'full',
                     'geometries' => 'geojson',
@@ -56,7 +57,7 @@ class EtaService
                 'eta_minutes' => $etaMinutes,
                 'distance_meters' => $distanceMeters,
                 'route_geometry' => $geometry,
-                'calculated_at' => now()->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP'),
+                'calculated_at' => now()->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh'))->format('Y-m-d\TH:i:s.uP'),
             ];
 
             // Cache in Redis
@@ -68,7 +69,7 @@ class EtaService
             );
 
             return $result;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OSRM ETA calculation failed', [
                 'trainer_id' => $trainerId,
                 'error' => $e->getMessage(),
@@ -120,7 +121,7 @@ class EtaService
                         $result['distance_meters'],
                         $result['route_geometry']
                     );
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     Log::error('TrainerEtaUpdated broadcast failed', [
                         'trainer_id' => $trainerId,
                         'error' => $e->getMessage(),

@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Services\Onboarding\OnboardingSlaService;
 use Illuminate\Console\Command;
 
+//daily at 00:00 Midnight — marks actual breaches
 class CheckOnboardingSla extends Command
 {
     protected $signature = 'onboarding:check-sla';

@@ -10,6 +10,7 @@ use App\Models\PlaylistVideo;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class PlaylistVideoService
 {
@@ -19,21 +20,24 @@ class PlaylistVideoService
 
     public function listForPlaylist(Playlist $playlist): Collection
     {
-        $cacheKey = "playlist:{$playlist->id}:videos";
-        $ttl      = config('coms.playlist_list_ttl', 300);
+        $cacheKey = "playlist:$playlist->id:videos";
+        $ttl = config('coms.playlist_list_ttl', 300);
 
         return Cache::store('redis')->remember($cacheKey, $ttl, function () use ($playlist) {
             return $playlist->videos()->with(['creator'])->orderBy('position')->get();
         });
     }
 
+    /**
+     * @throws PlaylistVideoNotFoundException
+     */
     public function get(Playlist $playlist, string $videoId): PlaylistVideo
     {
         $video = PlaylistVideo::where('playlist_id', $playlist->id)->find($videoId);
 
         if (! $video) {
             throw new PlaylistVideoNotFoundException(
-                "Video with ID '{$videoId}' not found in playlist '{$playlist->id}'.",
+                "Video with ID '$videoId' not found in playlist '$playlist->id'.",
                 context: ['playlist_id' => $playlist->id, 'video_id' => $videoId]
             );
         }
@@ -45,6 +49,10 @@ class PlaylistVideoService
     // Write operations
     //
 
+    /**
+     * @throws DuplicatePlaylistVideoException
+     * @throws InvalidYouTubeLinkException
+     */
     public function add(Playlist $playlist, array $data, string $userId): PlaylistVideo
     {
         $this->assertValidYouTubeUrl($data['youtube_url']);
@@ -54,11 +62,11 @@ class PlaylistVideoService
 
         $video = PlaylistVideo::create([
             'playlist_id' => $playlist->id,
-            'title'       => $data['title'],
+            'title' => $data['title'],
             'description' => $data['description'] ?? null,
             'youtube_url' => $data['youtube_url'],
-            'position'    => $position,
-            'created_by'  => $userId,
+            'position' => $position,
+            'created_by' => $userId,
         ]);
 
         $this->invalidateCaches($playlist);
@@ -66,6 +74,10 @@ class PlaylistVideoService
         return $video->load(['creator']);
     }
 
+    /**
+     * @throws DuplicatePlaylistVideoException
+     * @throws InvalidYouTubeLinkException
+     */
     public function update(Playlist $playlist, PlaylistVideo $video, array $data, string $userId): PlaylistVideo
     {
         if (isset($data['youtube_url'])) {
@@ -75,10 +87,18 @@ class PlaylistVideoService
 
         $updateData = ['updated_by' => $userId];
 
-        if (isset($data['title']))       $updateData['title']       = $data['title'];
-        if (array_key_exists('description', $data)) $updateData['description'] = $data['description'];
-        if (isset($data['youtube_url'])) $updateData['youtube_url'] = $data['youtube_url'];
-        if (isset($data['position']))    $updateData['position']    = $data['position'];
+        if (isset($data['title'])) {
+            $updateData['title'] = $data['title'];
+        }
+        if (array_key_exists('description', $data)) {
+            $updateData['description'] = $data['description'];
+        }
+        if (isset($data['youtube_url'])) {
+            $updateData['youtube_url'] = $data['youtube_url'];
+        }
+        if (isset($data['position'])) {
+            $updateData['position'] = $data['position'];
+        }
 
         $video->update($updateData);
         $this->invalidateCaches($playlist);
@@ -94,6 +114,9 @@ class PlaylistVideoService
         $this->invalidateCaches($playlist);
     }
 
+    /**
+     * @throws Throwable
+     */
     public function reorder(Playlist $playlist, array $videoPositions, string $userId): void
     {
         DB::transaction(function () use ($playlist, $videoPositions, $userId) {
@@ -101,7 +124,7 @@ class PlaylistVideoService
                 PlaylistVideo::where('id', $item['id'])
                     ->where('playlist_id', $playlist->id)
                     ->update([
-                        'position'   => $item['position'],
+                        'position' => $item['position'],
                         'updated_by' => $userId,
                     ]);
             }
@@ -114,6 +137,9 @@ class PlaylistVideoService
     // Helpers
     //
 
+    /**
+     * @throws InvalidYouTubeLinkException
+     */
     private function assertValidYouTubeUrl(string $url): void
     {
         if (! $this->extractYouTubeVideoId($url)) {
@@ -124,6 +150,10 @@ class PlaylistVideoService
         }
     }
 
+    /**
+     * @throws DuplicatePlaylistVideoException
+     * @throws InvalidYouTubeLinkException
+     */
     private function assertYouTubeVideoIsUniqueGlobally(string $url, ?string $ignoreVideoId = null): void
     {
         $incomingVideoId = $this->extractYouTubeVideoId($url);
@@ -136,7 +166,7 @@ class PlaylistVideoService
         }
 
         $existingVideos = PlaylistVideo::query()
-            ->when($ignoreVideoId, fn($query) => $query->where('id', '!=', $ignoreVideoId))
+            ->when($ignoreVideoId, fn ($query) => $query->where('id', '!=', $ignoreVideoId))
             ->get(['id', 'playlist_id', 'youtube_url']);
 
         foreach ($existingVideos as $existingVideo) {
@@ -206,7 +236,7 @@ class PlaylistVideoService
 
     private function invalidateCaches(Playlist $playlist): void
     {
-        Cache::store('redis')->forget("playlist:{$playlist->id}:videos");
-        Cache::store('redis')->forget("playlist:list:{$playlist->created_by}");
+        Cache::store('redis')->forget("playlist:$playlist->id:videos");
+        Cache::store('redis')->forget("playlist:list:$playlist->created_by");
     }
 }

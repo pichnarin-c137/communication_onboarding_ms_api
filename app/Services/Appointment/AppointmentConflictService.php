@@ -7,6 +7,9 @@ use App\Models\Appointment;
 
 class AppointmentConflictService
 {
+    /**
+     * @throws TrainerScheduleConflictException
+     */
     public function checkConflict(string $trainerId, string $date, string $start, string $end, ?string $excludeId = null): void
     {
         $query = Appointment::where('trainer_id', $trainerId)

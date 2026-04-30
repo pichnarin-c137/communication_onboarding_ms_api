@@ -7,21 +7,26 @@ use App\Http\Requests\Onboarding\SubmitManualFeedbackRequest;
 use App\Models\OnboardingFeedbackToken;
 use App\Models\OnboardingRequest;
 use App\Services\Onboarding\OnboardingFeedbackService;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\ViewErrorBag;
+use Illuminate\Validation\ValidationException;
+use Random\RandomException;
 
 class OnboardingFeedbackController extends Controller
 {
     public function __construct(
-        private OnboardingFeedbackService $feedbackService,
+        private readonly OnboardingFeedbackService $feedbackService,
     ) {}
 
     /**
      * POST /onboarding/{id}/feedback/request
      * Trainer or admin triggers an email to the client with a feedback link.
+     *
+     * @throws RandomException
      */
-    public function request(Request $request, string $id): JsonResponse
+    public function request(string $id): JsonResponse
     {
         $onboarding = OnboardingRequest::findOrFail($id);
         $this->feedbackService->requestFeedback($onboarding);
@@ -74,14 +79,14 @@ class OnboardingFeedbackController extends Controller
      * GET /feedback/{token}
      * Public — renders the Blade feedback form for the client.
      */
-    public function showForm(string $token): \Illuminate\Http\Response
+    public function showForm(string $token): Response
     {
         $hashedToken = hash('sha256', $token);
         $tokenRecord = OnboardingFeedbackToken::where('token', $hashedToken)
             ->with('onboarding')
             ->first();
 
-        $emptyErrors = new ViewErrorBag();
+        $emptyErrors = new ViewErrorBag;
 
         if (! $tokenRecord) {
             return response(view('feedback.form', [
@@ -119,9 +124,9 @@ class OnboardingFeedbackController extends Controller
      * POST /feedback/{token}
      * Public — client submits their rating via the email link.
      */
-    public function submitViaEmail(SubmitEmailFeedbackRequest $request, string $token): \Illuminate\Contracts\View\View|\Illuminate\Http\Response
+    public function submitViaEmail(SubmitEmailFeedbackRequest $request, string $token): View|Response
     {
-        $emptyErrors = new ViewErrorBag();
+        $emptyErrors = new ViewErrorBag;
 
         try {
             $this->feedbackService->submitViaEmail(
@@ -135,7 +140,7 @@ class OnboardingFeedbackController extends Controller
                 'onboarding' => null,
                 'errors' => $emptyErrors,
             ]));
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             $errors = $e->errors();
             $tokenError = $errors['token'][0] ?? null;
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\Business\DefaultPolicyCannotBeRemovedException;
 use App\Http\Requests\CreateOnboardingPolicyRequest;
 use App\Models\OnboardingRequest;
 use App\Services\Onboarding\OnboardingService;
@@ -11,7 +12,7 @@ use Illuminate\Http\Request;
 class OnboardingPolicyController extends Controller
 {
     public function __construct(
-        private OnboardingService $onboardingService
+        private readonly OnboardingService $onboardingService
     ) {}
 
     public function index(string $onboardingId): JsonResponse
@@ -63,6 +64,9 @@ class OnboardingPolicyController extends Controller
         ]);
     }
 
+    /**
+     * @throws DefaultPolicyCannotBeRemovedException
+     */
     public function destroy(string $onboardingId, string $policyId): JsonResponse
     {
         $policy = OnboardingRequest::findOrFail($onboardingId)->policies()->findOrFail($policyId);

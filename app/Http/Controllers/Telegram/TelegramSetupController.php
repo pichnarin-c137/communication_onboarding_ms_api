@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Telegram;
 
+use App\Exceptions\Business\TelegramSetupException;
 use App\Http\Controllers\Controller;
 use App\Services\Telegram\TelegramGroupService;
 use App\Services\Telegram\TelegramWebhookService;
@@ -11,14 +12,15 @@ use Illuminate\Http\Request;
 class TelegramSetupController extends Controller
 {
     public function __construct(
-        private TelegramGroupService $groupService,
-        private TelegramWebhookService $webhookService,
+        private readonly TelegramGroupService $groupService,
+        private readonly TelegramWebhookService $webhookService,
     ) {}
 
     /**
      * POST /api/v1/telegram/setup-token
      *
      * Generate a new setup token for a client. Auth: sale, admin.
+     * @throws TelegramSetupException
      */
     public function generateToken(Request $request): JsonResponse
     {
@@ -47,6 +49,7 @@ class TelegramSetupController extends Controller
      * GET /api/v1/telegram/setup-token
      *
      * Return an active setup token for a client, or create one if none exists.
+     * @throws TelegramSetupException
      */
     public function getOrCreateToken(Request $request): JsonResponse
     {

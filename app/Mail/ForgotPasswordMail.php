@@ -30,7 +30,7 @@ class ForgotPasswordMail extends Mailable implements ShouldQueue
         return new Content(
             view: 'emails.forgot_password',
             with: [
-                'resetLink'     => $this->resetLink,
+                'resetLink' => $this->resetLink,
                 'expiryMinutes' => $this->expiryMinutes,
             ],
         );

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Appointment;
 use App\Models\OnboardingRequest;
+use App\Models\UserSetting;
 use App\Services\Notification\NotificationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -28,7 +29,8 @@ class SendDailyDigest implements ShouldQueue
 
     public function handle(NotificationService $notificationService): void
     {
-        $today = now()->toDateString();
+        $tz    = UserSetting::where('user_id', $this->userId)->value('timezone') ?? config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh');
+        $today = now($tz)->toDateString();
 
         $appointmentCounts = Appointment::whereDate('scheduled_date', $today)
             ->selectRaw('status, count(*) as total')
@@ -40,7 +42,7 @@ class SendDailyDigest implements ShouldQueue
         $pendingToday = $appointmentCounts->get('pending', 0);
 
         $overdueOnboardings = OnboardingRequest::whereNotNull('due_date')
-            ->whereDate('due_date', '<', $today)
+            ->whereDate('due_date', '<', now($tz)->toDateString())
             ->whereNull('sla_breached_at')
             ->whereNotIn('status', ['completed', 'cancelled'])
             ->count();

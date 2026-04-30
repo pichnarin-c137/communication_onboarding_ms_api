@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\MailDeliveryException;
 use App\Exceptions\RoleNotFoundException;
 use App\Exceptions\UserNotFoundException;
 use App\Models\Client;
@@ -10,20 +11,31 @@ use App\Models\EmergencyContact;
 use App\Models\PersonalInformation;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use InvalidArgumentException;
+use Random\RandomException;
+use Throwable;
 
 class UserService
 {
     private array $uploadedFiles = [];
 
     public function __construct(
-        private OtpService $otpService
+        private readonly OtpService $otpService
     ) {}
 
+    /**
+     * @throws Throwable
+     * @throws MailDeliveryException
+     * @throws RandomException
+     */
     public function createUser(
         array $userData,
         array $credentialData,
@@ -54,7 +66,7 @@ class UserService
                 ]);
 
                 // Create credentials
-                $credential = Credential::create([
+                Credential::create([
                     'user_id' => $user->id,
                     'email' => $credentialData['email'],
                     'username' => $credentialData['username'],
@@ -82,7 +94,7 @@ class UserService
             // This prevents email failures from rolling back user creation
             try {
                 $this->otpService->sendOtp($user->credential);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 // Log email failure but don't fail the user creation
                 Log::warning('Failed to send OTP email after user creation', [
                     'user_id' => $user->id,
@@ -92,17 +104,20 @@ class UserService
             }
 
             return $user;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Transaction failed, clean up uploaded files
             $this->cleanupUploadedFiles();
             throw $e;
         }
     }
 
-    private function createPersonalInformation(string $userId, array $data): PersonalInformation
+    /**
+     * @throws Throwable
+     */
+    private function createPersonalInformation(string $userId, array $data): void
     {
         Log::info('Creating personal information for user', ['user_id' => $userId, 'has_files' => [
-            'professtional_photo' => isset($data['professtional_photo']) && $data['professtional_photo'] instanceof UploadedFile,
+            'professional_photo' => isset($data['professtional_photo']) && $data['professtional_photo'] instanceof UploadedFile,
             'nationality_card' => isset($data['nationality_card']) && $data['nationality_card'] instanceof UploadedFile,
             'family_book' => isset($data['family_book']) && $data['family_book'] instanceof UploadedFile,
             'birth_certificate' => isset($data['birth_certificate']) && $data['birth_certificate'] instanceof UploadedFile,
@@ -124,7 +139,7 @@ class UserService
             'paths' => $personalInfoData,
         ]);
 
-        return PersonalInformation::create($personalInfoData);
+        PersonalInformation::create($personalInfoData);
     }
 
     private function createEmergencyContact(string $userId, array $data): EmergencyContact
@@ -140,6 +155,9 @@ class UserService
         ]);
     }
 
+    /**
+     * @throws Throwable
+     */
     private function uploadDocument(?UploadedFile $file, string $folder): ?string
     {
         if (! $file) {
@@ -167,7 +185,7 @@ class UserService
 
         try {
             // Store in storage/app/public/documents/{folder}
-            $path = $file->store("documents/{$folder}", 'public');
+            $path = $file->store("documents/$folder", 'public');
 
             if ($path) {
                 $this->uploadedFiles[] = $path;
@@ -187,7 +205,7 @@ class UserService
             }
 
             return $path;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('File upload failed with exception', [
                 'folder' => $folder,
                 'original_name' => $file->getClientOriginalName(),
@@ -357,10 +375,10 @@ class UserService
         if (! empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
-                $q->where('first_name', 'ilike', "%{$search}%")
-                    ->orWhere('last_name', 'ilike', "%{$search}%")
+                $q->where('first_name', 'ilike', "%$search%")
+                    ->orWhere('last_name', 'ilike', "%$search%")
                     ->orWhereHas('credential', function ($cq) use ($search) {
-                        $cq->where('phone_number', 'ilike', "%{$search}%");
+                        $cq->where('phone_number', 'ilike', "%$search%");
                     });
             });
         }
@@ -376,6 +394,9 @@ class UserService
         return $query->get(['id', 'first_name', 'last_name'])->toArray();
     }
 
+    /**
+     * @throws UserNotFoundException
+     */
     public function getUserProfile(string $userId): array
     {
         $user = User::with(['role', 'credential', 'personalInformation', 'emergencyContact'])->find($userId);
@@ -435,6 +456,9 @@ class UserService
         return $profile;
     }
 
+    /**
+     * @throws UserNotFoundException
+     */
     public function toggleSuspension(string $userId): User
     {
         $user = User::find($userId);
@@ -448,6 +472,9 @@ class UserService
         return $user;
     }
 
+    /**
+     * @throws UserNotFoundException
+     */
     public function softDeleteUser(string $userId): bool
     {
         $user = User::find($userId);
@@ -459,6 +486,9 @@ class UserService
         return $user->delete();
     }
 
+    /**
+     * @throws UserNotFoundException
+     */
     public function hardDeleteUser(string $userId): bool
     {
         $user = User::withTrashed()->find($userId);
@@ -475,7 +505,10 @@ class UserService
         return $user->forceDelete();
     }
 
-    public function restoreUser(string $userId): User
+    /**
+     * @throws UserNotFoundException
+     */
+    public function restoreUser(string $userId): Collection|Model|SoftDeletes
     {
         $user = User::withTrashed()->find($userId);
 
@@ -484,7 +517,7 @@ class UserService
         }
 
         if (! $user->trashed()) {
-            throw new \InvalidArgumentException('User is not soft deleted');
+            throw new InvalidArgumentException('User is not soft deleted');
         }
 
         $user->restore();
@@ -492,6 +525,10 @@ class UserService
         return $user->load(['role', 'credential']);
     }
 
+    /**
+     * @throws Throwable
+     * @throws UserNotFoundException
+     */
     public function updateUserInformation(string $userId, array $userData, array $personalInfoData = [], array $emergencyContactData = []): User
     {
         $this->uploadedFiles = [];
@@ -524,19 +561,22 @@ class UserService
 
             // Clear tracker on success
             $this->uploadedFiles = [];
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Clean up uploaded files on failure
             $this->cleanupUploadedFiles();
             throw $e;
         }
     }
 
+    /**
+     * @throws Throwable
+     */
     private function updatePersonalInformation(User $user, array $data): void
     {
         $personalInfo = $user->personalInformation;
 
         if (! $personalInfo) {
-            // Create if doesn't exist
+            // Create if it doesn't exist
             $this->createPersonalInformation($user->id, $data);
 
             return;
@@ -595,7 +635,7 @@ class UserService
         $emergencyContact = $user->emergencyContact;
 
         if (! $emergencyContact) {
-            // Create if doesn't exist
+            // Create if it doesn't exist
             $this->createEmergencyContact($user->id, $data);
 
             return;

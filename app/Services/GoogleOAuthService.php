@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\OAuthToken;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -30,7 +31,7 @@ class GoogleOAuthService
         return $response->getTargetUrl();
     }
 
-    public function handleCallback(string $code, string $userId): OAuthToken
+    public function handleCallback(string $userId): OAuthToken
     {
         /** @var GoogleProvider $driver */
         $driver = Socialite::driver('google');
@@ -94,6 +95,9 @@ class GoogleOAuthService
         Log::info('Google OAuth disconnected', ['user_id' => $userId]);
     }
 
+    /**
+     * @throws ConnectionException
+     */
     public function getValidAccessToken(string $userId): ?string
     {
         $token = OAuthToken::where('user_id', $userId)
@@ -119,6 +123,9 @@ class GoogleOAuthService
         return $this->refreshAccessToken($token);
     }
 
+    /**
+     * @throws ConnectionException
+     */
     private function refreshAccessToken(OAuthToken $token): ?string
     {
         /** @var Response $response */

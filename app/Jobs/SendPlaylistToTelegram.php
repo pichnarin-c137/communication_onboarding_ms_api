@@ -7,10 +7,13 @@ use App\Models\PlaylistVideo;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
+use Throwable;
 
 class SendPlaylistToTelegram implements ShouldQueue
 {
@@ -26,6 +29,9 @@ class SendPlaylistToTelegram implements ShouldQueue
         public readonly ?string $message = null,
     ) {}
 
+    /**
+     * @throws ConnectionException
+     */
     public function handle(): void
     {
         $botToken = config('services.telegram.bot_token', '');
@@ -34,12 +40,13 @@ class SendPlaylistToTelegram implements ShouldQueue
             Log::warning('SendPlaylistToTelegram: bot token not configured.', [
                 'playlist_id' => $this->playlist->id,
             ]);
+
             return;
         }
 
         $header = "<b>{$this->playlist->title}</b>";
         if ($this->message) {
-            $header .= "\n\n{$this->message}";
+            $header .= "\n\n$this->message";
         }
 
         $this->post($botToken, $header);
@@ -49,29 +56,32 @@ class SendPlaylistToTelegram implements ShouldQueue
             ->get();
 
         foreach ($videos as $video) {
-            $this->post($botToken, "<b>{$video->title}</b>\n{$video->youtube_url}");
+            $this->post($botToken, "<b>$video->title</b>\n$video->youtube_url");
         }
     }
 
-    public function failed(\Throwable $e): void
+    public function failed(Throwable $e): void
     {
         Log::error('SendPlaylistToTelegram: all retries exhausted.', [
             'playlist_id' => $this->playlist->id,
-            'chat_id'     => $this->chatId,
-            'error'       => $e->getMessage(),
+            'chat_id' => $this->chatId,
+            'error' => $e->getMessage(),
         ]);
     }
 
+    /**
+     * @throws ConnectionException
+     */
     private function post(string $botToken, string $text): void
     {
-        $response = Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
-            'chat_id'    => $this->chatId,
-            'text'       => $text,
+        $response = Http::post("https://api.telegram.org/bot$botToken/sendMessage", [
+            'chat_id' => $this->chatId,
+            'text' => $text,
             'parse_mode' => 'HTML',
         ]);
 
         if (! $response->successful()) {
-            throw new \RuntimeException("Telegram API error: " . $response->body());
+            throw new RuntimeException('Telegram API error: '.$response->body());
         }
     }
 }

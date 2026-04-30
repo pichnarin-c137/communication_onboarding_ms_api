@@ -6,12 +6,11 @@ use App\Exceptions\InvalidTokenException;
 use App\Exceptions\TokenExpiredException;
 use App\Services\AuthService;
 use Illuminate\Http\Request;
-use Illuminate\Support\ViewErrorBag;
 use Illuminate\View\View;
 
 class ResetPasswordController extends Controller
 {
-    public function __construct(private AuthService $authService) {}
+    public function __construct(private readonly AuthService $authService) {}
 
     /**
      * GET /reset-password?token=...&email=...
@@ -44,9 +43,9 @@ class ResetPasswordController extends Controller
     public function handleForm(Request $request): View
     {
         $request->validate([
-            'email'                 => ['required', 'email'],
-            'token'                 => ['required', 'string'],
-            'password'              => ['required', 'string', 'min:8', 'confirmed'],
+            'email' => ['required', 'email'],
+            'token' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
             'password_confirmation' => ['required', 'string'],
         ]);
 

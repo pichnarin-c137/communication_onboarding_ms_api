@@ -42,7 +42,7 @@ class NotifyOnboardingStageCompletion implements ShouldQueue
         }
 
         $clientName = $onboarding->client?->company_name ?? 'Client';
-        $progress   = number_format($this->progress, 1);
+        $progress = number_format($this->progress, 1);
 
         $notificationService->notify(
             [$saleId],
@@ -57,8 +57,8 @@ class NotifyOnboardingStageCompletion implements ShouldQueue
     {
         Log::error('NotifyOnboardingStageCompletion: failed after all retries.', [
             'onboarding_id' => $this->onboardingId,
-            'step_name'     => $this->stepName,
-            'error'         => $e->getMessage(),
+            'step_name' => $this->stepName,
+            'error' => $e->getMessage(),
         ]);
     }
 }

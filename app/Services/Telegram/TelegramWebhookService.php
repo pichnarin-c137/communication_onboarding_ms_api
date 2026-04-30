@@ -6,8 +6,9 @@ use App\Exceptions\Business\TelegramSetupException;
 use App\Models\TelegramEvent;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
-class TelegramWebhookService
+readonly class TelegramWebhookService
 {
     public function __construct(
         private TelegramGroupService $groupService,
@@ -30,8 +31,8 @@ class TelegramWebhookService
 
         match ($eventType) {
             'setup_command' => $this->handleSetupCommand($payload),
-            'bot_removed'   => $this->handleBotRemoved($payload),
-            default         => null, // unknown events are already logged — nothing else to do
+            'bot_removed' => $this->handleBotRemoved($payload),
+            default => null, // unknown events are already logged — nothing else to do
         };
     }
 
@@ -40,20 +41,20 @@ class TelegramWebhookService
     private function handleSetupCommand(array $payload): void
     {
         try {
-            $text      = $payload['message']['text'] ?? '';
+            $text = $payload['message']['text'] ?? '';
             preg_match('/^\/setup(?:@\w+)?\s+(\S+)/', $text, $matches);
-            $token     = $matches[1] ?? '';
-            $chatId    = (string) ($payload['message']['chat']['id'] ?? '');
+            $token = $matches[1] ?? '';
+            $chatId = (string) ($payload['message']['chat']['id'] ?? '');
             $groupName = $payload['message']['chat']['title'] ?? 'Unknown Group';
 
             $this->groupService->registerGroup($token, $chatId, $groupName);
 
             // Send direct confirmation back (not queued, not logged as a TelegramMessage)
-            $this->sendDirectMessage($chatId, "This group has been successfully connected to COMS.");
+            $this->sendDirectMessage($chatId, 'This group has been successfully connected to COMS.');
         } catch (TelegramSetupException $e) {
             $chatId = (string) ($payload['message']['chat']['id'] ?? '');
             $this->sendDirectMessage($chatId, "Setup failed: {$e->getMessage()}");
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('TelegramWebhookService: unexpected error in handleSetupCommand', [
                 'error' => $e->getMessage(),
             ]);
@@ -65,7 +66,7 @@ class TelegramWebhookService
         try {
             $chatId = (string) ($payload['my_chat_member']['chat']['id'] ?? '');
             $this->groupService->markBotRemoved($chatId);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('TelegramWebhookService: unexpected error in handleBotRemoved', [
                 'error' => $e->getMessage(),
             ]);
@@ -114,14 +115,14 @@ class TelegramWebhookService
     {
         try {
             TelegramEvent::create([
-                'chat_id'    => $chatId,
+                'chat_id' => $chatId,
                 'event_type' => $eventType,
-                'payload'    => $payload,
+                'payload' => $payload,
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('TelegramWebhookService: failed to log telegram event', [
                 'event_type' => $eventType,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -140,16 +141,16 @@ class TelegramWebhookService
             }
 
             Http::post(
-                "https://api.telegram.org/bot{$botToken}/sendMessage",
+                "https://api.telegram.org/bot$botToken/sendMessage",
                 [
                     'chat_id' => $chatId,
-                    'text'    => $text,
+                    'text' => $text,
                 ]
             );
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('TelegramWebhookService: failed to send direct message', [
                 'chat_id' => $chatId,
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }

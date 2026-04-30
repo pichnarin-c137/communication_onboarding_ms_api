@@ -12,7 +12,7 @@ class VerifyTelegramWebhookSecret
      * Verify that the incoming request carries the correct Telegram webhook secret token.
      *
      * Telegram sends the secret in the `X-Telegram-Bot-Api-Secret-Token` header.
-     * If it does not match the configured value, return 403 with no body.
+     * If it does not match the configured value, return 403 with nobody.
      */
     public function handle(Request $request, Closure $next): Response
     {

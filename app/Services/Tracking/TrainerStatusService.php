@@ -9,6 +9,7 @@ use App\Models\TrainerActivityLog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
+use Throwable;
 
 class TrainerStatusService
 {
@@ -21,11 +22,13 @@ class TrainerStatusService
     ];
 
     public function __construct(
-        private TrainerTrackingService $trackingService,
+        private readonly TrainerTrackingService $trackingService,
     ) {}
 
     /**
      * Change a trainer's tracking status.
+     *
+     * @throws InvalidTrainerStatusTransitionException|Throwable
      */
     public function changeStatus(string $trainerId, string $newStatus, array $data): TrainerActivityLog
     {
@@ -35,7 +38,7 @@ class TrainerStatusService
         $allowed = self::TRANSITIONS[$currentStatus] ?? [];
         if (! in_array($newStatus, $allowed)) {
             throw new InvalidTrainerStatusTransitionException(
-                "Cannot transition from '{$currentStatus}' to '{$newStatus}'.",
+                "Cannot transition from '$currentStatus' to '$newStatus'.",
                 context: [
                     'trainer_id' => $trainerId,
                     'current_status' => $currentStatus,
@@ -67,7 +70,7 @@ class TrainerStatusService
             // Update PostGIS location if coordinates provided
             if ($lat !== null && $lng !== null) {
                 DB::statement(
-                    "UPDATE trainer_activity_logs SET location = ST_SetSRID(ST_MakePoint(?, ?), 4326) WHERE id = ?",
+                    'UPDATE trainer_activity_logs SET location = ST_SetSRID(ST_MakePoint(?, ?), 4326) WHERE id = ?',
                     [$lng, $lat, $log->id]
                 );
             }
@@ -90,7 +93,7 @@ class TrainerStatusService
             'lat' => $lat,
             'lng' => $lng,
             'detection_method' => $detectionMethod,
-            'updated_at' => now()->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP'),
+            'updated_at' => now()->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh'))->format('Y-m-d\TH:i:s.uP'),
         ];
 
         $ttl = config('coms.tracking.status_cache_ttl', 86400);
@@ -102,7 +105,7 @@ class TrainerStatusService
         }
 
         // Per-status side effects
-        $this->handleSideEffects($trainerId, $newStatus, $customerId, $customerName, $lat, $lng);
+        $this->handleSideEffects($trainerId, $newStatus, $customerId);
 
         // Fire Pusher event
         try {
@@ -115,7 +118,7 @@ class TrainerStatusService
                 $lng,
                 $detectionMethod
             );
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('TrainerStatusChanged broadcast failed', [
                 'trainer_id' => $trainerId,
                 'status' => $newStatus,
@@ -135,6 +138,7 @@ class TrainerStatusService
         $cached = Redis::get(TrainerTrackingService::statusKey($trainerId));
         if ($cached) {
             $data = json_decode($cached, true);
+
             return $data['status'] ?? 'at_office';
         }
 
@@ -147,7 +151,7 @@ class TrainerStatusService
     }
 
     /**
-     * Force-reset a trainer to at_office (e.g. when an active appointment is cancelled/rescheduled).
+     * Force-reset a trainer to at_office (e.g. when an active appointment is canceled/rescheduled).
      * Flushes trail, cleans up Redis keys, and updates status cache.
      */
     public function resetToAtOffice(string $trainerId): void
@@ -163,7 +167,7 @@ class TrainerStatusService
             'lat' => null,
             'lng' => null,
             'detection_method' => 'system',
-            'updated_at' => now()->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : 'Asia/Phnom_Penh')->format('Y-m-d\TH:i:s.uP'),
+            'updated_at' => now()->setTimezone(app()->bound('request.timezone') ? app('request.timezone') : config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh'))->format('Y-m-d\TH:i:s.uP'),
         ];
 
         $ttl = config('coms.tracking.status_cache_ttl', 86400);
@@ -177,7 +181,7 @@ class TrainerStatusService
 
         try {
             TrainerStatusChanged::dispatch($trainerId, 'at_office', null, null, null, null, 'system');
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('TrainerStatusChanged broadcast failed during reset', [
                 'trainer_id' => $trainerId,
                 'error' => $e->getMessage(),
@@ -191,10 +195,7 @@ class TrainerStatusService
     private function handleSideEffects(
         string $trainerId,
         string $newStatus,
-        ?string $customerId,
-        ?string $customerName,
-        ?float $lat,
-        ?float $lng
+        ?string $customerId
     ): void {
         switch ($newStatus) {
             case 'en_route':

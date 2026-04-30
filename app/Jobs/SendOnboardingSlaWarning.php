@@ -10,6 +10,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class SendOnboardingSlaWarning implements ShouldQueue
 {
@@ -37,22 +38,22 @@ class SendOnboardingSlaWarning implements ShouldQueue
         }
 
         $progress = number_format($this->onboarding->progress_percentage, 1);
-        $dueDate  = $this->onboarding->due_date->format('Y-m-d');
+        $dueDate = $this->onboarding->due_date->format('Y-m-d');
 
         $notificationService->notify(
             $recipients,
             'onboarding_sla_warning',
             'Onboarding Due Soon',
-            "Onboarding {$this->onboarding->request_code} is due on {$dueDate}. Current progress: {$progress}%.",
+            "Onboarding {$this->onboarding->request_code} is due on $dueDate. Current progress: $progress%.",
             ['type' => 'onboarding_request', 'id' => $this->onboarding->id],
         );
     }
 
-    public function failed(\Throwable $e): void
+    public function failed(Throwable $e): void
     {
         Log::error('SendOnboardingSlaWarning: failed after all retries.', [
             'onboarding_id' => $this->onboarding->id,
-            'error'         => $e->getMessage(),
+            'error' => $e->getMessage(),
         ]);
     }
 }

@@ -2,7 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AccountSuspendedException;
+use App\Exceptions\InvalidCredentialsException;
+use App\Exceptions\InvalidOtpException;
 use App\Exceptions\InvalidTokenException;
+use App\Exceptions\InvalidTokenTypeException;
+use App\Exceptions\MailDeliveryException;
+use App\Exceptions\OtpRateLimitException;
+use App\Exceptions\RefreshTokenRevokedException;
+use App\Exceptions\TokenExpiredException;
+use App\Exceptions\UserNotFoundException;
 use App\Http\Requests\ChangePasswordRequest;
 use App\Http\Requests\ForgotPasswordRequest;
 use App\Http\Requests\LoginRequest;
@@ -14,15 +23,22 @@ use App\Services\JwtService;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Random\RandomException;
+use Throwable;
 
 class AuthController extends Controller
 {
     public function __construct(
-        private AuthService $authService,
-        private UserService $userService,
-        private JwtService $jwtService
+        private readonly AuthService $authService,
+        private readonly UserService $userService,
+        private readonly JwtService $jwtService
     ) {}
 
+    /**
+     * @throws Throwable
+     * @throws MailDeliveryException
+     * @throws RandomException
+     */
     public function register(RegisterRequest $request): JsonResponse
     {
         $userData = $request->only([
@@ -50,11 +66,17 @@ class AuthController extends Controller
             'message' => 'User registered successfully. OTP sent to email.',
             'data' => [
                 'user_id' => $user->id,
-                'email'   => $user->credential->email,
+                'email' => $user->credential->email,
             ],
         ], 201);
     }
 
+    /**
+     * @throws MailDeliveryException
+     * @throws OtpRateLimitException
+     * @throws AccountSuspendedException
+     * @throws InvalidCredentialsException
+     */
     public function login(LoginRequest $request): JsonResponse
     {
         $credential = $this->authService->initiateLogin(
@@ -67,12 +89,15 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'OTP sent to your email',
             'data' => [
-                'email'     => $credential->email,
+                'email' => $credential->email,
                 'next_step' => 'verify_otp',
             ],
         ]);
     }
 
+    /**
+     * @throws InvalidOtpException
+     */
     public function verifyOtp(VerifyOtpRequest $request): JsonResponse
     {
         $tokens = $this->authService->verifyOtpAndIssueTokens(
@@ -82,7 +107,7 @@ class AuthController extends Controller
             $request->input('timezone')
         );
 
-        $refreshToken              = $tokens['refresh_token'];
+        $refreshToken = $tokens['refresh_token'];
         $refreshTokenExpiryMinutes = $tokens['refresh_expires_in'] / 60;
         unset($tokens['refresh_token'], $tokens['refresh_expires_in']);
 
@@ -91,7 +116,7 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Login successful',
-            'data'    => $tokens,
+            'data' => $tokens,
         ])->cookie(
             'refresh_token',
             $refreshToken,
@@ -111,6 +136,8 @@ class AuthController extends Controller
 
     /**
      * Step 1 — user submits their email; a reset link is sent if found.
+     *
+     * @throws RandomException
      */
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
@@ -127,11 +154,15 @@ class AuthController extends Controller
      */
     public function resetPassword(ResetPasswordRequest $request): JsonResponse
     {
-        $this->authService->resetPassword(
-            $request->email,
-            $request->token,
-            $request->password,
-        );
+        try {
+            $this->authService->resetPassword(
+                $request->email,
+                $request->token,
+                $request->password,
+            );
+        } catch (InvalidTokenException|TokenExpiredException) {
+
+        }
 
         return response()->json([
             'success' => true,
@@ -145,6 +176,7 @@ class AuthController extends Controller
 
     /**
      * User provides their current password plus the desired new password.
+     * @throws InvalidCredentialsException
      */
     public function changePassword(ChangePasswordRequest $request): JsonResponse
     {
@@ -164,6 +196,14 @@ class AuthController extends Controller
     // Token management
     // -------------------------------------------------------------------------
 
+    /**
+     * @throws RefreshTokenRevokedException
+     * @throws InvalidTokenTypeException
+     * @throws TokenExpiredException
+     * @throws UserNotFoundException
+     * @throws AccountSuspendedException
+     * @throws InvalidTokenException
+     */
     public function refreshToken(Request $request): JsonResponse
     {
         $refreshToken = $request->cookie('refresh_token');
@@ -177,7 +217,7 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Token refreshed successfully',
-            'data'    => $tokens,
+            'data' => $tokens,
         ]);
     }
 

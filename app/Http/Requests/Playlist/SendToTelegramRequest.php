@@ -24,10 +24,10 @@ class SendToTelegramRequest extends FormRequest
     protected function failedValidation(Validator $validator): void
     {
         throw new HttpResponseException(response()->json([
-            'success'    => false,
-            'message'    => 'Validation errors.',
+            'success' => false,
+            'message' => 'Validation errors.',
             'error_code' => 'VALIDATION_ERROR',
-            'errors'     => $validator->errors(),
+            'errors' => $validator->errors(),
         ], 422));
     }
 }

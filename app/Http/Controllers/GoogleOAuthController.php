@@ -40,7 +40,7 @@ class GoogleOAuthController extends Controller
         $frontendUrl = config('services.google.frontend_redirect_url');
 
         try {
-            $this->googleOAuthService->handleCallback($request->code, $userId);
+            $this->googleOAuthService->handleCallback($userId);
 
             return redirect()->to($frontendUrl.'?google=connected');
         } catch (\Exception $e) {

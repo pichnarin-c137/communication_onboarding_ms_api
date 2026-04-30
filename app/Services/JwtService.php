@@ -12,8 +12,12 @@ use App\Exceptions\UserNotFoundException;
 use App\Models\RefreshToken;
 use App\Models\User;
 use Carbon\Carbon;
+use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use Firebase\JWT\SignatureInvalidException;
+use Random\RandomException;
+use Throwable;
 
 class JwtService
 {
@@ -25,6 +29,9 @@ class JwtService
 
     private int $refreshTokenExpiry;
 
+    /**
+     * @throws JwtKeyNotFoundException
+     */
     public function __construct()
     {
         try {
@@ -33,28 +40,28 @@ class JwtService
 
             // Check if key files exist
             if (! file_exists($privateKeyPath)) {
-                throw new JwtKeyNotFoundException("JWT private key not found at: {$privateKeyPath}");
+                throw new JwtKeyNotFoundException("JWT private key not found at: $privateKeyPath");
             }
 
             if (! file_exists($publicKeyPath)) {
-                throw new JwtKeyNotFoundException("JWT public key not found at: {$publicKeyPath}");
+                throw new JwtKeyNotFoundException("JWT public key not found at: $publicKeyPath");
             }
 
             // Read key files (file_get_contents returns string|false; assign via local vars
             // to avoid TypeError on typed string properties before we can handle the error)
             $privateKey = file_get_contents($privateKeyPath);
-            $publicKey  = file_get_contents($publicKeyPath);
+            $publicKey = file_get_contents($publicKeyPath);
 
             if ($privateKey === false || $publicKey === false) {
                 throw new JwtKeyNotFoundException('Failed to read JWT key files');
             }
 
             $this->privateKey = $privateKey;
-            $this->publicKey  = $publicKey;
+            $this->publicKey = $publicKey;
         } catch (JwtKeyNotFoundException $e) {
             throw $e;
-        } catch (\Throwable $e) {
-            throw new JwtKeyNotFoundException('Error loading JWT keys: ' . $e->getMessage(), 0, $e);
+        } catch (Throwable $e) {
+            throw new JwtKeyNotFoundException('Error loading JWT keys: '.$e->getMessage(), 0, $e);
         }
 
         $this->accessTokenExpiry = config('jwt.access_token_expiry', 1440); // minutes
@@ -84,6 +91,8 @@ class JwtService
 
     /**
      * Generate refresh token (long-lived) and store in DB
+     *
+     * @throws RandomException
      */
     public function generateRefreshToken(User $user, ?int $expiryMinutes = null, bool $rememberme = false, string $timezone = 'Asia/Phnom_Penh'): string
     {
@@ -116,27 +125,39 @@ class JwtService
 
     /**
      * Validate and decode token
+     *
+     * @throws TokenExpiredException|InvalidTokenException
      */
     public function validateToken(string $token): object
     {
         try {
             return JWT::decode($token, new Key($this->publicKey, 'RS256'));
-        } catch (\Firebase\JWT\ExpiredException $e) {
+        } catch (ExpiredException $e) {
             throw new TokenExpiredException('Token has expired', 0, $e);
-        } catch (\Firebase\JWT\SignatureInvalidException $e) {
+        } catch (SignatureInvalidException $e) {
             throw new InvalidTokenException('Token signature is invalid', 0, $e);
-        } catch (\Throwable $e) {
-            throw new InvalidTokenException('Invalid token: ' . $e->getMessage(), 0, $e);
+        } catch (Throwable $e) {
+            throw new InvalidTokenException('Invalid token: '.$e->getMessage(), 0, $e);
         }
     }
 
     /**
      * Refresh access token using refresh token
+     * @throws InvalidTokenTypeException
+     * @throws InvalidTokenException
+     * @throws RefreshTokenRevokedException
+     * @throws TokenExpiredException
+     * @throws UserNotFoundException
+     * @throws AccountSuspendedException
      */
     public function refreshAccessToken(string $refreshToken): array
     {
         // Validate refresh token
-        $decoded = $this->validateToken($refreshToken);
+        try {
+            $decoded = $this->validateToken($refreshToken);
+        } catch (InvalidTokenException|TokenExpiredException) {
+
+        }
 
         if ($decoded->type !== 'refresh') {
             throw new InvalidTokenTypeException('Token must be a refresh token');
@@ -172,7 +193,7 @@ class JwtService
         }
 
         // Keep access token expiry in sync with remember-me refresh sessions.
-        $isRememberMe = isset($decoded->remember_me) && (bool) $decoded->remember_me;
+        $isRememberMe = isset($decoded->remember_me) && $decoded->remember_me;
         $accessExpiryMinutes = $isRememberMe
             ? (int) config('jwt.rememberme_access_token_expiry', 1440)
             : $this->accessTokenExpiry;

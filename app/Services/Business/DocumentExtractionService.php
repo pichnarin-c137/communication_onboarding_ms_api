@@ -8,17 +8,18 @@ use Illuminate\Support\Facades\Log;
 use Imagick;
 use Smalot\PdfParser\Parser as PdfParser;
 use thiagoalessio\TesseractOCR\TesseractOCR;
+use Throwable;
 
 class DocumentExtractionService
 {
     /**
      * Extract structured fields from an uploaded patent document.
-     * Supports text-based PDFs (via pdfparser) and scanned images (via Tesseract OCR).
+     * Supports text-based PDFs (via parser) and scanned images (via Tesseract OCR).
+     * @throws DocumentExtractionFailedException
      */
     public function extract(UploadedFile $file): array
     {
         $mime = $file->getMimeType();
-        $rawText = '';
 
         if ($mime === 'application/pdf') {
             $rawText = $this->extractFromPdf($file->getRealPath());
@@ -44,9 +45,7 @@ class DocumentExtractionService
             );
         }
 
-        $fields = $this->parseFields($rawText);
-
-        return $fields;
+        return $this->parseFields($rawText);
     }
 
     private function extractFromPdf(string $path): string
@@ -56,7 +55,7 @@ class DocumentExtractionService
             $pdf = $parser->parseFile($path);
             $text = $pdf->getText();
 
-            if (! empty(trim((string) $text))) {
+            if (! empty(trim($text))) {
                 return $text;
             }
 
@@ -65,7 +64,7 @@ class DocumentExtractionService
             ]);
 
             return $this->extractFromPdfImages($path);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('PDF text extraction failed, falling back to OCR.', [
                 'error' => $e->getMessage(),
                 'path' => $path,
@@ -82,7 +81,7 @@ class DocumentExtractionService
             $ocr->lang('eng');
 
             return $ocr->run();
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('Tesseract OCR failed.', [
                 'error' => $e->getMessage(),
                 'path' => $path,
@@ -127,10 +126,10 @@ class DocumentExtractionService
             }
 
             $imagick->clear();
-            $imagick->destroy();
+            $imagick->clear();
 
             return trim(implode("\n", array_filter($textChunks)));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('PDF OCR fallback via Imagick failed.', [
                 'error' => $e->getMessage(),
                 'path' => $path,

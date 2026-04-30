@@ -99,7 +99,7 @@ class OnboardingController extends Controller
         $onboarding = OnboardingRequest::findOrFail($id);
         $trainer = User::findOrFail($request->get('auth_user_id'));
 
-        $this->onboardingService->complete($onboarding, $trainer);
+        $this->onboardingService->complete($onboarding);
 
         return response()->json([
             'success' => true,
@@ -111,7 +111,7 @@ class OnboardingController extends Controller
     {
         $onboarding = OnboardingRequest::findOrFail($id);
 
-        $this->onboardingService->cancel($onboarding, $request->input('reason'));
+        $this->onboardingService->cancel($onboarding);
 
         return response()->json([
             'success' => true,
@@ -126,7 +126,7 @@ class OnboardingController extends Controller
         $onboarding = OnboardingRequest::findOrFail($id);
         $userId = $request->get('auth_user_id');
 
-        $this->onboardingService->hold($onboarding, $request->validated('reason'), $userId);
+        $this->onboardingService->hold($onboarding, $request->validated('reason'));
 
         return response()->json([
             'success' => true,
@@ -139,7 +139,7 @@ class OnboardingController extends Controller
         $onboarding = OnboardingRequest::findOrFail($id);
         $userId = $request->get('auth_user_id');
 
-        $this->onboardingService->resumeHold($onboarding, $userId);
+        $this->onboardingService->resumeHold($onboarding);
 
         return response()->json([
             'success' => true,
@@ -244,7 +244,7 @@ class OnboardingController extends Controller
         $onboarding = OnboardingRequest::findOrFail($id);
         $userId = $request->get('auth_user_id');
 
-        $this->onboardingService->setDueDate($onboarding, $request->validated('due_date'), $userId);
+        $this->onboardingService->setDueDate($onboarding, $request->validated('due_date'));
 
         return response()->json([
             'success' => true,

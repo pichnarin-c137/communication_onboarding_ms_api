@@ -11,9 +11,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
+use Random\RandomException;
+use Throwable;
 
 class OnboardingFeedbackService
 {
+    /**
+     * @throws RandomException
+     */
     public function requestFeedback(OnboardingRequest $onboarding): void
     {
         $clientEmail = $onboarding->client?->email;
@@ -46,16 +51,19 @@ class OnboardingFeedbackService
             Mail::to($clientEmail)->queue(
                 new OnboardingFeedbackMailable($onboarding, $rawToken, $clientEmail)
             );
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('OnboardingFeedbackService: failed to queue feedback email', [
                 'onboarding_id' => $onboarding->id,
                 'error' => $e->getMessage(),
             ]);
         }
 
-        Cache::store('redis')->forget("onboarding:show:{$onboarding->id}");
+        Cache::store('redis')->forget("onboarding:show:$onboarding->id");
     }
 
+    /**
+     * @throws Throwable
+     */
     public function submitViaEmail(string $rawToken, int $rating, ?string $comment): OnboardingClientFeedback
     {
         $hashedToken = hash('sha256', $rawToken);
@@ -94,7 +102,7 @@ class OnboardingFeedbackService
             return $feedback;
         });
 
-        Cache::store('redis')->forget("onboarding:show:{$tokenRecord->onboarding_id}");
+        Cache::store('redis')->forget("onboarding:show:$tokenRecord->onboarding_id");
 
         return $feedback;
     }
@@ -116,7 +124,7 @@ class OnboardingFeedbackService
             'submitted_at' => now(),
         ]);
 
-        Cache::store('redis')->forget("onboarding:show:{$onboarding->id}");
+        Cache::store('redis')->forget("onboarding:show:$onboarding->id");
 
         return $feedback;
     }
@@ -127,9 +135,9 @@ class OnboardingFeedbackService
 
         if ($feedback) {
             return [
-                'status'       => 'submitted',
-                'rating'       => $feedback->rating,
-                'comment'      => $feedback->comment,
+                'status' => 'submitted',
+                'rating' => $feedback->rating,
+                'comment' => $feedback->comment,
                 'submitted_at' => $feedback->submitted_at,
             ];
         }
@@ -138,7 +146,7 @@ class OnboardingFeedbackService
 
         if ($token && $token->used_at === null && $token->expires_at->isFuture()) {
             return [
-                'status'  => 'sent',
+                'status' => 'sent',
                 'sent_at' => $token->created_at,
             ];
         }

@@ -9,10 +9,10 @@ Route::get('/dev/login/{email}', [DevController::class, 'loginAs']);
 
 Route::get('/healthcheck', function () {
     $status = [
-        'status'      => 'OK',
+        'status' => 'OK',
         'php_version' => phpversion(),
-        'database'    => ['status' => 'unknown'],
-        'redis'       => ['status' => 'unknown'],
+        'database' => ['status' => 'unknown'],
+        'redis' => ['status' => 'unknown'],
     ];
 
     $httpCode = 200;
@@ -20,7 +20,7 @@ Route::get('/healthcheck', function () {
     try {
         DB::connection()->getPdo();
         $status['database'] = [
-            'status'   => 'connected',
+            'status' => 'connected',
             'database' => DB::connection()->getDatabaseName(),
         ];
     } catch (Exception) {
@@ -36,7 +36,7 @@ Route::get('/healthcheck', function () {
         $httpCode = 500;
     }
 
-    $status['status']  = $httpCode === 500 ? 'ERROR' : 'OK';
+    $status['status'] = $httpCode === 500 ? 'ERROR' : 'OK';
     $status['message'] = $httpCode === 500
         ? 'Some services are down'
         : 'Customer Onboarding Management API is running smoothly.';

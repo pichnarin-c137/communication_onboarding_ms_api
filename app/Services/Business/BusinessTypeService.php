@@ -13,7 +13,7 @@ class BusinessTypeService
     {
         $version = (int) Cache::get('business_type:list_version', 1);
         $searchKey = $search !== '' ? md5($search) : 'all';
-        $cacheKey = "business_type:list:v{$version}:page_{$page}_per_{$perPage}:search_{$searchKey}";
+        $cacheKey = "business_type:list:v$version:page_{$page}_per_$perPage:search_$searchKey";
         $ttl = config('coms.business.business_type_list_ttl', 600);
 
         return Cache::remember($cacheKey, $ttl, function () use ($perPage, $page, $search): array {
@@ -21,8 +21,8 @@ class BusinessTypeService
 
             if ($search !== '') {
                 $query->where(function ($builder) use ($search) {
-                    $builder->where('name_en', 'ilike', "%{$search}%")
-                        ->orWhere('name_km', 'ilike', "%{$search}%");
+                    $builder->where('name_en', 'ilike', "%$search%")
+                        ->orWhere('name_km', 'ilike', "%$search%");
                 });
             }
 
@@ -42,16 +42,19 @@ class BusinessTypeService
         });
     }
 
+    /**
+     * @throws BusinessTypeNotFoundException
+     */
     public function get(string $id): BusinessType
     {
-        $cacheKey = "business_type:{$id}";
+        $cacheKey = "business_type:$id";
         $ttl = config('coms.business.business_type_show_ttl', 1800);
 
         $businessType = Cache::remember($cacheKey, $ttl, fn () => BusinessType::find($id));
 
         if (! $businessType) {
             throw new BusinessTypeNotFoundException(
-                "Business type with ID '{$id}' not found.",
+                "Business type with ID '$id' not found.",
                 context: ['business_type_id' => $id]
             );
         }
@@ -73,11 +76,14 @@ class BusinessTypeService
         $businessType->update($data);
 
         $this->invalidateListCache();
-        Cache::forget("business_type:{$businessType->id}");
+        Cache::forget("business_type:$businessType->id");
 
         return $businessType->fresh();
     }
 
+    /**
+     * @throws BusinessTypeInUseException
+     */
     public function delete(BusinessType $businessType): void
     {
         if ($businessType->companies()->exists()) {
@@ -90,7 +96,7 @@ class BusinessTypeService
         $businessType->delete();
 
         $this->invalidateListCache();
-        Cache::forget("business_type:{$businessType->id}");
+        Cache::forget("business_type:$businessType->id");
     }
 
     private function invalidateListCache(): void

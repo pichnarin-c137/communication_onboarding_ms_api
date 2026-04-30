@@ -5,13 +5,17 @@ namespace App\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Pusher\Pusher;
+use Pusher\PusherException;
 
 class BroadcastController extends Controller
 {
     public function __construct(
-        private Pusher $pusher
+        private readonly Pusher $pusher
     ) {}
 
+    /**
+     * @throws PusherException
+     */
     public function auth(Request $request): JsonResponse
     {
         $request->validate([

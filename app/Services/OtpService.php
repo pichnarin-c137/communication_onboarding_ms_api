@@ -9,6 +9,8 @@ use App\Models\Credential;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Random\RandomException;
+use Throwable;
 
 class OtpService
 {
@@ -29,6 +31,7 @@ class OtpService
 
     /**
      * Generate numeric OTP
+     * @throws RandomException
      */
     public function generateOtp(): string
     {
@@ -44,6 +47,7 @@ class OtpService
 
     /**
      * Generate and send OTP to user
+     * @throws RandomException|MailDeliveryException
      */
     public function sendOtp(Credential $credential): void
     {
@@ -66,11 +70,7 @@ class OtpService
             // Attempt to send email
             Mail::to($credential->email)->send(new OtpMail($otp, $expiryMinutes));
 
-        } catch (MailDeliveryException $e) {
-            // Rollback OTP on mail failure
-            $credential->clearOtp();
-            throw $e;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Log and rollback OTP on any other failure
             Log::error('Failed to send OTP email', [
                 'email' => $credential->email,
@@ -105,8 +105,9 @@ class OtpService
     }
 
     /**
-     * Check if can resend OTP (rate limiting)
+     * Check if you can resend OTP (rate limiting)
      * Throws exception if rate limit is exceeded
+     * @throws OtpRateLimitException
      */
     public function canResendOtp(Credential $credential): bool
     {

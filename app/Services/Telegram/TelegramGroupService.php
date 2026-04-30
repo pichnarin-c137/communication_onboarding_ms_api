@@ -3,6 +3,7 @@
 namespace App\Services\Telegram;
 
 use App\Exceptions\Business\TelegramSetupException;
+use App\Jobs\SendTelegramNotification;
 use App\Models\Client;
 use App\Models\TelegramGroup;
 use App\Models\TelegramMessage;
@@ -10,8 +11,10 @@ use App\Models\TelegramSetupToken;
 use App\Services\UserSettingsService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
+use Throwable;
 
-class TelegramGroupService
+readonly class TelegramGroupService
 {
     public function __construct(
         private TelegramMessageTemplate $template,
@@ -19,8 +22,10 @@ class TelegramGroupService
     ) {}
 
     // Token management
+
     /**
      * Return an active setup token for a client, or create one if it does not exist.
+     * @throws TelegramSetupException
      */
     public function getOrCreateToken(string $clientId, string $createdBy): TelegramSetupToken
     {
@@ -37,6 +42,9 @@ class TelegramGroupService
         return $this->resolveSetupToken($clientId, $createdBy);
     }
 
+    /**
+     * @throws TelegramSetupException
+     */
     private function resolveSetupToken(string $clientId, string $createdBy): TelegramSetupToken
     {
         if ($this->hasLockedGroupForClient($clientId)) {
@@ -98,7 +106,6 @@ class TelegramGroupService
         if ($pendingGroup) {
             $pendingGroup->update($data);
 
-
             return;
         }
 
@@ -118,6 +125,7 @@ class TelegramGroupService
 
     /**
      * Register a Telegram group via a setup token sent from inside the group.
+     * @throws TelegramSetupException
      */
     public function registerGroup(string $token, string $chatId, string $groupName): TelegramGroup
     {
@@ -214,8 +222,8 @@ class TelegramGroupService
         $supported = config('coms.telegram_supported_languages', ['en', 'km']);
 
         if (! in_array($language, $supported, true)) {
-            throw new \InvalidArgumentException(
-                "Language '{$language}' is not supported. Supported: ".implode(', ', $supported)
+            throw new InvalidArgumentException(
+                "Language '$language' is not supported. Supported: ".implode(', ', $supported)
             );
         }
 
@@ -263,11 +271,12 @@ class TelegramGroupService
             'status' => 'pending',
         ]);
 
-        \App\Jobs\SendTelegramNotification::dispatch($telegramMessage);
+        SendTelegramNotification::dispatch($telegramMessage);
     }
 
     /**
      * Send a test message to verify the bot connection.
+     * @throws TelegramSetupException
      */
     public function sendTestMessage(string $groupId): void
     {
@@ -314,7 +323,7 @@ class TelegramGroupService
             }
 
             $this->sendMessage($group, $messageType, $variables);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('TelegramGroupService: failed to notify client', [
                 'client_id' => $clientId,
                 'message_type' => $messageType,

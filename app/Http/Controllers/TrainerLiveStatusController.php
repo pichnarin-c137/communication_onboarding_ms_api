@@ -13,8 +13,8 @@ use Illuminate\Http\Request;
 class TrainerLiveStatusController extends Controller
 {
     public function __construct(
-        private TrainerTrackingService $trackingService,
-        private EtaService $etaService,
+        private readonly TrainerTrackingService $trackingService,
+        private readonly EtaService $etaService,
     ) {}
 
     public function liveStatus(): JsonResponse
@@ -102,7 +102,7 @@ class TrainerLiveStatusController extends Controller
     {
         $clients = Client::whereNotNull('headquarter_latitude')
             ->whereNotNull('headquarter_longitude')
-            ->get(['id','company_code', 'company_name', 'headquarter_latitude', 'headquarter_longitude', 'geofence_radius']);
+            ->get(['id', 'company_code', 'company_name', 'headquarter_latitude', 'headquarter_longitude', 'geofence_radius']);
 
         return response()->json([
             'success' => true,

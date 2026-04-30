@@ -16,14 +16,14 @@ class AddPlaylistVideoRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'title'       => ['required', 'string', 'max:255'],
+            'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
             'youtube_url' => [
                 'required',
                 'string',
                 'regex:/^https:\/\/(?:www\.|m\.)?(?:youtube\.com\/watch\?.+|youtu\.be\/.+)$/',
             ],
-            'position'    => ['nullable', 'integer', 'min:1'],
+            'position' => ['nullable', 'integer', 'min:1'],
         ];
     }
 
@@ -40,10 +40,10 @@ class AddPlaylistVideoRequest extends FormRequest
         $message = $errors->first() ?: 'Validation errors.';
 
         throw new HttpResponseException(response()->json([
-            'success'    => false,
-            'message'    => $message,
+            'success' => false,
+            'message' => $message,
             'error_code' => 'VALIDATION_ERROR',
-            'errors'     => $errors,
+            'errors' => $errors,
         ], 422));
     }
 }

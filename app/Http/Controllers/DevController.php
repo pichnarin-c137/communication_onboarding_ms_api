@@ -28,7 +28,7 @@ class DevController extends Controller
 
         $credential = Credential::where('email', $email)->with('user.role')->first();
 
-        if (!$credential) {
+        if (! $credential) {
             return response()->json(['message' => 'User not found'], 404);
         }
 

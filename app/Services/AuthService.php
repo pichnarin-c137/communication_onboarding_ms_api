@@ -129,7 +129,7 @@ class AuthService
         if ($timezone) {
             $setting->update(['timezone' => $timezone]);
         }
-        $resolvedTimezone = $setting->timezone ?? 'Asia/Phnom_Penh';
+        $resolvedTimezone = $setting->timezone ?? config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh');
 
         $accessToken  = $this->jwtService->generateAccessToken($user, $accessExpiryMinutes, $resolvedTimezone);
         $refreshToken = $this->jwtService->generateRefreshToken($user, $refreshExpiryMinutes, $rememberme, $resolvedTimezone);

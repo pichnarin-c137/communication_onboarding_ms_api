@@ -2,17 +2,19 @@
 
 namespace App\Services\Telegram;
 
+use InvalidArgumentException;
+
 class TelegramMessageTemplate
 {
     /**
      * Render a message template for the given type and language.
      *
      * @param  string  $messageType  One of the supported message type keys (e.g. 'training_scheduled')
-     * @param  string  $language     Language code (e.g. 'en', 'km'). Falls back to 'en' if unsupported.
-     * @param  array   $variables    Named placeholder values, keyed without the colon (e.g. ['client_name' => 'Sokha'])
-     * @return string  The rendered message string
+     * @param  string  $language  Language code (e.g. 'en', 'km'). Falls back to 'en' if unsupported.
+     * @param  array  $variables  Named placeholder values, keyed without the colon (e.g. ['client_name' => 'Sokha'])
+     * @return string The rendered message string
      *
-     * @throws \InvalidArgumentException if the message type key does not exist in the template file
+     * @throws InvalidArgumentException if the message type key does not exist in the template file
      */
     public function render(string $messageType, string $language, array $variables): string
     {
@@ -25,15 +27,15 @@ class TelegramMessageTemplate
         $templates = $this->loadTemplates($language);
 
         if (! array_key_exists($messageType, $templates)) {
-            throw new \InvalidArgumentException(
-                "Telegram message type '{$messageType}' does not exist in the '{$language}' template file."
+            throw new InvalidArgumentException(
+                "Telegram message type '$messageType' does not exist in the '$language' template file."
             );
         }
 
         $template = $templates[$messageType];
 
         foreach ($variables as $key => $value) {
-            $template = str_replace(":{$key}", (string) $value, $template);
+            $template = str_replace(":$key", (string) $value, $template);
         }
 
         return $template;
@@ -52,7 +54,7 @@ class TelegramMessageTemplate
      */
     private function loadTemplates(string $language): array
     {
-        $path = lang_path("{$language}/telegram.php");
+        $path = lang_path("$language/telegram.php");
 
         if (! file_exists($path)) {
             // Fall back to English if the file is somehow missing

@@ -16,7 +16,7 @@ class UpdatePlaylistVideoRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'title'       => ['sometimes', 'required', 'string', 'max:255'],
+            'title' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
             'youtube_url' => [
                 'sometimes',
@@ -24,7 +24,7 @@ class UpdatePlaylistVideoRequest extends FormRequest
                 'string',
                 'regex:/^https:\/\/(?:www\.|m\.)?(?:youtube\.com\/watch\?.+|youtu\.be\/.+)$/',
             ],
-            'position'    => ['sometimes', 'required', 'integer', 'min:1'],
+            'position' => ['sometimes', 'required', 'integer', 'min:1'],
         ];
     }
 
@@ -41,10 +41,10 @@ class UpdatePlaylistVideoRequest extends FormRequest
         $message = $errors->first() ?: 'Validation errors.';
 
         throw new HttpResponseException(response()->json([
-            'success'    => false,
-            'message'    => $message,
+            'success' => false,
+            'message' => $message,
             'error_code' => 'VALIDATION_ERROR',
-            'errors'     => $errors,
+            'errors' => $errors,
         ], 422));
     }
 }

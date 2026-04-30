@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\Business\LessonLockedAfterSendException;
 use App\Http\Requests\CreateOnboardingLessonRequest;
 use App\Http\Requests\UpdateOnboardingLessonRequest;
 use App\Models\OnboardingRequest;
@@ -12,7 +13,7 @@ use Illuminate\Http\Request;
 class OnboardingLessonController extends Controller
 {
     public function __construct(
-        private OnboardingService $onboardingService
+        private readonly OnboardingService $onboardingService
     ) {}
 
     public function index(string $onboardingId): JsonResponse
@@ -38,6 +39,9 @@ class OnboardingLessonController extends Controller
         ], 201);
     }
 
+    /**
+     * @throws LessonLockedAfterSendException
+     */
     public function update(UpdateOnboardingLessonRequest $request, string $onboardingId, string $lessonId): JsonResponse
     {
         $lesson = OnboardingRequest::findOrFail($onboardingId)->lessons()->findOrFail($lessonId);
@@ -51,6 +55,9 @@ class OnboardingLessonController extends Controller
         ]);
     }
 
+    /**
+     * @throws LessonLockedAfterSendException
+     */
     public function destroy(string $onboardingId, string $lessonId): JsonResponse
     {
         $lesson = OnboardingRequest::findOrFail($onboardingId)->lessons()->findOrFail($lessonId);
@@ -63,6 +70,9 @@ class OnboardingLessonController extends Controller
         ]);
     }
 
+    /**
+     * @throws LessonLockedAfterSendException
+     */
     public function send(Request $request, string $onboardingId, string $lessonId): JsonResponse
     {
         $lesson = OnboardingRequest::findOrFail($onboardingId)->lessons()->findOrFail($lessonId);

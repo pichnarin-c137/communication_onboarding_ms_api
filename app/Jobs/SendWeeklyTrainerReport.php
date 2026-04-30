@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Appointment;
 use App\Models\OnboardingRequest;
 use App\Models\User;
+use App\Models\UserSetting;
 use App\Services\Notification\NotificationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -29,8 +30,9 @@ class SendWeeklyTrainerReport implements ShouldQueue
 
     public function handle(NotificationService $notificationService): void
     {
-        $from = now()->subDays(7)->startOfDay();
-        $to   = now()->endOfDay();
+        $tz   = UserSetting::where('user_id', $this->adminId)->value('timezone') ?? config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh');
+        $from = now($tz)->subDays(7)->startOfDay()->utc();
+        $to   = now($tz)->endOfDay()->utc();
 
         $trainers = User::whereHas('role', fn ($q) => $q->where('role', 'trainer'))
             ->get(['id', 'first_name', 'last_name']);

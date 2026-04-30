@@ -10,7 +10,7 @@ class SystemService
     {
         $query = System::where('is_active', true)->orderBy('name');
 
-        if (isset($filters['search']) && ! empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $query->where('name', 'like', "%{$filters['search']}%")
                 ->orWhere('code', 'like', "%{$filters['search']}%");
         }
@@ -19,7 +19,7 @@ class SystemService
             ->map(function ($system) {
                 return [
                     'value' => $system->id,
-                    'label' => ucfirst($system->name)." ({$system->code})",
+                    'label' => ucfirst($system->name)." ($system->code)",
                 ];
             })
             ->toArray();

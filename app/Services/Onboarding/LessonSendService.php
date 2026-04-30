@@ -6,13 +6,17 @@ use App\Exceptions\Business\LessonLockedAfterSendException;
 use App\Models\OnboardingLesson;
 use App\Services\Telegram\TelegramGroupService;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
-class LessonSendService
+readonly class LessonSendService
 {
     public function __construct(
         private TelegramGroupService $telegramGroupService,
     ) {}
 
+    /**
+     * @throws LessonLockedAfterSendException
+     */
     public function send(OnboardingLesson $lesson, string $userId): void
     {
         if ($lesson->is_sent) {
@@ -35,8 +39,8 @@ class LessonSendService
             $clientName = $onboarding?->client?->company_name ?? 'Client';
             $lessonUrl = $lesson->lesson_video_url;
             $lessonName = $lesson->lesson_video_url
-                ? "Lesson Path {$lesson->path} (Video)"
-                : "Lesson Path {$lesson->path} (Document)";
+                ? "Lesson Path $lesson->path (Video)"
+                : "Lesson Path $lesson->path (Document)";
 
             if ($clientId) {
                 $this->telegramGroupService->notifyClient($clientId, 'lesson_sent', [
@@ -45,7 +49,7 @@ class LessonSendService
                     'lesson_url' => $lessonUrl,
                 ]);
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('LessonSendService Telegram notification failed', [
                 'lesson_id' => $lesson->id,
                 'error' => $e->getMessage(),

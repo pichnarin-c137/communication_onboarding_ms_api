@@ -6,10 +6,13 @@ use App\Models\TelegramMessage;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
+use Throwable;
 
 class SendTelegramNotification implements ShouldQueue
 {
@@ -26,6 +29,9 @@ class SendTelegramNotification implements ShouldQueue
         $this->tries = config('coms.telegram_message_retry_limit', 3);
     }
 
+    /**
+     * @throws ConnectionException
+     */
     public function handle(): void
     {
         $botToken = config('services.telegram.bot_token', '');
@@ -36,7 +42,7 @@ class SendTelegramNotification implements ShouldQueue
             ]);
 
             $this->telegramMessage->update([
-                'status'        => 'failed',
+                'status' => 'failed',
                 'error_message' => 'Bot token is not configured.',
             ]);
 
@@ -47,7 +53,7 @@ class SendTelegramNotification implements ShouldQueue
 
         if (! $group || ! $group->chat_id) {
             $this->telegramMessage->update([
-                'status'        => 'failed',
+                'status' => 'failed',
                 'error_message' => 'Telegram group or chat_id not found.',
             ]);
 
@@ -55,16 +61,16 @@ class SendTelegramNotification implements ShouldQueue
         }
 
         $response = Http::post(
-            "https://api.telegram.org/bot{$botToken}/sendMessage",
+            "https://api.telegram.org/bot$botToken/sendMessage",
             [
                 'chat_id' => $group->chat_id,
-                'text'    => $this->telegramMessage->message_body,
+                'text' => $this->telegramMessage->message_body,
             ]
         );
 
         if ($response->successful()) {
             $this->telegramMessage->update([
-                'status'  => 'sent',
+                'status' => 'sent',
                 'sent_at' => now(),
             ]);
         } else {
@@ -72,30 +78,30 @@ class SendTelegramNotification implements ShouldQueue
 
             Log::warning('SendTelegramNotification: Telegram API returned an error.', [
                 'telegram_message_id' => $this->telegramMessage->id,
-                'status_code'         => $response->status(),
-                'response_body'       => $errorBody,
+                'status_code' => $response->status(),
+                'response_body' => $errorBody,
             ]);
 
             // Re-throw to trigger retry logic via the queue
-            throw new \RuntimeException("Telegram API error: {$errorBody}");
+            throw new RuntimeException("Telegram API error: $errorBody");
         }
     }
 
     /**
      * Handle job failure after all retries are exhausted.
      */
-    public function failed(\Throwable $e): void
+    public function failed(Throwable $e): void
     {
         try {
             $this->telegramMessage->update([
-                'status'        => 'failed',
+                'status' => 'failed',
                 'error_message' => $e->getMessage(),
             ]);
-        } catch (\Throwable $updateException) {
+        } catch (Throwable $updateException) {
             Log::error('SendTelegramNotification: failed to update TelegramMessage status on failure.', [
                 'telegram_message_id' => $this->telegramMessage->id,
-                'original_error'      => $e->getMessage(),
-                'update_error'        => $updateException->getMessage(),
+                'original_error' => $e->getMessage(),
+                'update_error' => $updateException->getMessage(),
             ]);
         }
     }

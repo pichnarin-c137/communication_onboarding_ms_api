@@ -5,7 +5,10 @@ namespace App\Services\Appointment;
 use App\Exceptions\Business\AppointmentLockedException;
 use App\Exceptions\Business\AppointmentTimeTooEarlyException;
 use App\Exceptions\Business\DemoCreationForbiddenException;
+use App\Exceptions\Business\InvalidStatusTransitionException;
+use App\Exceptions\Business\LeaveOfficeNotAllowedException;
 use App\Exceptions\Business\OneAppointmentAtATimeException;
+use App\Exceptions\Business\TrainerScheduleConflictException;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Client;
@@ -19,12 +22,15 @@ use App\Services\Telegram\TelegramGroupService;
 use App\Services\Tracking\EtaService;
 use App\Services\Tracking\TrainerStatusService;
 use App\Services\Tracking\TrainerTrackingService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
+use RuntimeException;
+use Throwable;
 
-class AppointmentService
+readonly class AppointmentService
 {
     public function __construct(
         private AppointmentConflictService $conflictService,
@@ -118,6 +124,9 @@ class AppointmentService
 
     // Write operations (with cache invalidation)
 
+    /**
+     * @throws Throwable
+     */
     public function create(array $data, string $creatorId): Appointment
     {
         $appointment = DB::transaction(function () use ($data, $creatorId) {
@@ -135,7 +144,7 @@ class AppointmentService
                     : ($data['trainer_id'] ?? null);
                 $trainer = $trainerId ? User::find($trainerId) : null;
                 $data['title'] = $client
-                    ? "{$client->company_code} | {$client->company_name} | {$trainer->first_name} {$trainer->last_name}"
+                    ? "$client->company_code | $client->company_name | $trainer->first_name $trainer->last_name"
                     : (($data['appointment_type'] ?? 'training') === 'demo' ? 'Demo Session' : 'Training Session');
             }
 
@@ -162,7 +171,7 @@ class AppointmentService
 
             $this->activityLogger->log(
                 'appointment_created',
-                "Appointment '{$appointment->title}' created",
+                "Appointment '$appointment->title' created",
                 ['appointment_id' => $appointment->id]
             );
 
@@ -181,7 +190,7 @@ class AppointmentService
                 [$appointment->trainer_id],
                 'appointment_assigned',
                 'New Appointment Assigned',
-                "You have a new appointment '{$appointment->title}' scheduled on {$appointment->scheduled_date->format('M d, Y')}.",
+                "You have a new appointment '$appointment->title' scheduled on {$appointment->scheduled_date->format('M d, Y')}.",
                 ['type' => 'appointment', 'id' => $appointment->id]
             );
         }
@@ -194,6 +203,10 @@ class AppointmentService
         return $appointment;
     }
 
+    /**
+     * @throws TrainerScheduleConflictException
+     * @throws AppointmentLockedException
+     */
     public function update(Appointment $appt, array $data): Appointment
     {
         if ($appt->status !== 'pending') {
@@ -219,6 +232,11 @@ class AppointmentService
         return $appt->fresh();
     }
 
+    /**
+     * @throws OneAppointmentAtATimeException
+     * @throws LeaveOfficeNotAllowedException
+     * @throws InvalidStatusTransitionException
+     */
     public function leaveOffice(Appointment $appt, float $lat, float $lng): void
     {
         $this->statusService->validateTransition($appt, 'leave_office');
@@ -250,7 +268,7 @@ class AppointmentService
                 [$appt->creator_id],
                 'appointment_leave_office',
                 'Trainer Left Office',
-                "Your trainer has left the office for appointment '{$appt->title}' on {$appt->scheduled_date->format('M d, Y')}.",
+                "Your trainer has left the office for appointment '$appt->title' on {$appt->scheduled_date->format('M d, Y')}.",
                 ['type' => 'appointment', 'id' => $appt->id]
             );
         }
@@ -258,6 +276,11 @@ class AppointmentService
         $this->notifyTrainingTelegramQuietly($appt, 'training_on_the_way');
     }
 
+    /**
+     * @throws OneAppointmentAtATimeException
+     * @throws AppointmentTimeTooEarlyException
+     * @throws InvalidStatusTransitionException
+     */
     public function startAppointment(Appointment $appt, string $proofMedia, float $lat, float $lng): void
     {
         $this->statusService->validateTransition($appt, 'in_progress');
@@ -266,7 +289,7 @@ class AppointmentService
         // Only enforce the early-start window for appointments that have NOT gone through
         // leave_office — once a trainer is physically en route, the time restriction is moot.
         if ($appt->status !== 'leave_office') {
-            $scheduledStart = \Carbon\Carbon::parse(
+            $scheduledStart = Carbon::parse(
                 $appt->scheduled_date->toDateString().' '.$appt->scheduled_start_time
             );
 
@@ -302,7 +325,7 @@ class AppointmentService
                 [$appt->creator_id],
                 'appointment_started',
                 'Appointment Started',
-                "Appointment '{$appt->title}' has been started by the trainer on {$appt->scheduled_date->format('M d, Y')}.",
+                "Appointment '$appt->title' has been started by the trainer on {$appt->scheduled_date->format('M d, Y')}.",
                 ['type' => 'appointment', 'id' => $appt->id]
             );
         }
@@ -310,6 +333,9 @@ class AppointmentService
         $this->notifyTrainingTelegramQuietly($appt, 'training_started');
     }
 
+    /**
+     * @throws InvalidStatusTransitionException
+     */
     public function completeAppointment(
         Appointment $appt,
         string $endProofMedia,
@@ -367,6 +393,10 @@ class AppointmentService
         }
     }
 
+    /**
+     * @throws AppointmentLockedException
+     * @throws InvalidStatusTransitionException
+     */
     public function cancel(Appointment $appt, string $reason, string $userId): void
     {
         if ($appt->trainer_id === $userId && $appt->creator_id !== $userId) {
@@ -400,7 +430,7 @@ class AppointmentService
                 $notifyIds,
                 'appointment_cancelled',
                 'Appointment Cancelled',
-                "Appointment '{$appt->title}' on {$appt->scheduled_date->format('M d, Y')} has been cancelled.",
+                "Appointment '$appt->title' on {$appt->scheduled_date->format('M d, Y')} has been cancelled.",
                 ['type' => 'appointment', 'id' => $appt->id]
             );
         }
@@ -408,6 +438,9 @@ class AppointmentService
         $this->notifyTrainingTelegramQuietly($appt, 'training_cancelled');
     }
 
+    /**
+     * @throws Throwable
+     */
     public function reschedule(Appointment $appt, array $newSchedule): Appointment
     {
         $wasActive = in_array($appt->status, ['leave_office', 'in_progress']);
@@ -470,7 +503,7 @@ class AppointmentService
                 [$newAppt->trainer_id],
                 'appointment_rescheduled',
                 'Appointment Rescheduled',
-                "Appointment '{$newAppt->title}' has been rescheduled to {$newAppt->scheduled_date->format('M d, Y')}.",
+                "Appointment '$newAppt->title' has been rescheduled to {$newAppt->scheduled_date->format('M d, Y')}.",
                 ['type' => 'appointment', 'id' => $newAppt->id]
             );
         }
@@ -613,7 +646,7 @@ class AppointmentService
         $destination = ['lat' => $toLat, 'lng' => $toLng, 'label' => $clientName];
 
         // Try cached OSRM route first (keyed by branch:client pair — static locations)
-        $cacheKey = "route_estimate:{$branch->id}:{$client->id}";
+        $cacheKey = "route_estimate:$branch->id:$client->id";
         $ttl = config('coms.tracking.route_estimate_ttl', 86400);
 
         $cached = Cache::store('redis')->get($cacheKey);
@@ -627,7 +660,7 @@ class AppointmentService
 
         // Call OSRM via EtaService
         $osrmResult = $this->etaService->calculateEta(
-            "route_estimate_{$branch->id}_{$client->id}",
+            "route_estimate_{$branch->id}_$client->id",
             $fromLat,
             $fromLng,
             $toLat,
@@ -676,21 +709,21 @@ class AppointmentService
 
         for ($i = 0; $i < 10; $i++) {
             $random = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 5));
-            $code = "{$prefix}-{$date}-{$random}";
+            $code = "$prefix-$date-$random";
 
             if (! Appointment::where('appointment_code', $code)->exists()) {
                 return $code;
             }
         }
 
-        throw new \RuntimeException('Failed to generate unique appointment code after 10 attempts.');
+        throw new RuntimeException('Failed to generate unique appointment code after 10 attempts.');
     }
 
     private function notifyQuietly(array $userIds, string $type, string $title, string $body, array $meta): void
     {
         try {
             $this->notificationService->notify($userIds, $type, $title, $body, $meta);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('AppointmentService notification failed', [
                 'type' => $type,
                 'error' => $e->getMessage(),
@@ -724,17 +757,16 @@ class AppointmentService
             $trainerName = $appointment->trainer?->name ?? 'Trainer';
 
             $variables = match ($messageType) {
-                'training_scheduled' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'trainer_name' => $trainerName],
+                'training_scheduled', 'training_on_the_way' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'trainer_name' => $trainerName],
                 'training_completed' => ['client_name' => $clientName, 'date' => $date],
                 'training_started' => ['client_name' => $clientName, 'date' => $date, 'time' => $time],
-                'training_on_the_way' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'trainer_name' => $trainerName],
                 'training_rescheduled' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'reason' => $appointment->reschedule_reason ?? 'No reason provided'],
                 'training_cancelled' => ['client_name' => $clientName, 'date' => $date, 'reason' => $appointment->cancellation_reason ?? 'No reason provided'],
                 default => [],
             };
 
             $this->telegramGroupService->notifyClient($clientId, $messageType, $variables);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('AppointmentService Telegram notification failed', [
                 'appointment_id' => $appointment->id,
                 'message_type' => $messageType,
@@ -747,6 +779,8 @@ class AppointmentService
      * Ensure the trainer has no other active appointment (leave_office or in_progress).
      * A trainer must finish their current appointment before starting another.
      * Skipped when sale creates an appointment (trainer_id may not be set yet).
+     *
+     * @throws OneAppointmentAtATimeException
      */
     private function ensureNoActiveAppointment(?string $trainerId, ?string $excludeAppointmentId = null): void
     {
@@ -761,7 +795,7 @@ class AppointmentService
 
         if ($active) {
             throw new OneAppointmentAtATimeException(
-                "Finish the current appointment '{$active->appointment_code}' before starting a new one.",
+                "Finish the current appointment '$active->appointment_code' before starting a new one.",
                 context: [
                     'trainer_id' => $trainerId,
                     'active_appointment_id' => $active->id,
@@ -788,7 +822,7 @@ class AppointmentService
             }
 
             $this->trainerStatusService->changeStatus($trainerId, $trackingStatus, $data);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('Tracking status sync failed', [
                 'trainer_id' => $trainerId,
                 'tracking_status' => $trackingStatus,
@@ -799,7 +833,7 @@ class AppointmentService
 
     /**
      * Reset a trainer's tracking state back to at_office.
-     * Used when an active appointment is cancelled or rescheduled.
+     * Used when an active appointment is canceled or rescheduled.
      */
     private function resetTrainerTracking(?string $trainerId): void
     {
@@ -813,7 +847,7 @@ class AppointmentService
             Log::info('Trainer tracking reset to at_office (appointment cancelled/rescheduled)', [
                 'trainer_id' => $trainerId,
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('Trainer tracking reset failed', [
                 'trainer_id' => $trainerId,
                 'error' => $e->getMessage(),
@@ -831,12 +865,12 @@ class AppointmentService
         $cloudinaryData = $this->cloudinaryService->upload($proof, $category);
 
         if (! $cloudinaryData) {
-            throw new \RuntimeException('Failed to upload proof to Cloudinary. Ensure valid Base64 string with Data URI prefix (e.g. data:image/png;base64,...)');
+            throw new RuntimeException('Failed to upload proof to Cloudinary. Ensure valid Base64 string with Data URI prefix (e.g. data:image/png;base64,...)');
         }
 
         $media = Media::create([
             'filename' => basename($cloudinaryData['url']),
-            'original_filename' => "proof_{$category}.png",
+            'original_filename' => "proof_$category.png",
             'file_url' => $cloudinaryData['url'],
             'file_size' => $cloudinaryData['size'],
             'mime_type' => $cloudinaryData['mime_type'],
@@ -865,11 +899,11 @@ class AppointmentService
 
     private function listCacheKey(string $userId): string
     {
-        return "appointment:list:{$userId}";
+        return "appointment:list:$userId";
     }
 
     private function showCacheKey(string $id): string
     {
-        return "appointment:show:{$id}";
+        return "appointment:show:$id";
     }
 }

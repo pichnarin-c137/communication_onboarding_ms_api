@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\Business\BusinessTypeInUseException;
 use App\Exceptions\Business\BusinessTypeNotFoundException;
 use App\Http\Requests\Business\StoreBusinessTypeRequest;
 use App\Http\Requests\Business\UpdateBusinessTypeRequest;
@@ -12,7 +13,7 @@ use Illuminate\Http\JsonResponse;
 class BusinessTypeController extends Controller
 {
     public function __construct(
-        private BusinessTypeService $businessTypeService
+        private readonly BusinessTypeService $businessTypeService
     ) {}
 
     public function index(): JsonResponse
@@ -42,6 +43,9 @@ class BusinessTypeController extends Controller
         ], 201);
     }
 
+    /**
+     * @throws BusinessTypeNotFoundException
+     */
     public function show(string $id): JsonResponse
     {
         $businessType = $this->businessTypeService->get($id);
@@ -53,6 +57,9 @@ class BusinessTypeController extends Controller
         ]);
     }
 
+    /**
+     * @throws BusinessTypeNotFoundException
+     */
     public function update(UpdateBusinessTypeRequest $request, string $id): JsonResponse
     {
         $businessType = $this->resolveBusinessType($id);
@@ -65,6 +72,10 @@ class BusinessTypeController extends Controller
         ]);
     }
 
+    /**
+     * @throws BusinessTypeNotFoundException
+     * @throws BusinessTypeInUseException
+     */
     public function destroy(string $id): JsonResponse
     {
         $businessType = $this->resolveBusinessType($id);
@@ -77,13 +88,16 @@ class BusinessTypeController extends Controller
         ]);
     }
 
+    /**
+     * @throws BusinessTypeNotFoundException
+     */
     private function resolveBusinessType(string $id): BusinessType
     {
         $businessType = BusinessType::find($id);
 
         if (! $businessType) {
             throw new BusinessTypeNotFoundException(
-                "Business type with ID '{$id}' not found.",
+                "Business type with ID '$id' not found.",
                 context: ['business_type_id' => $id]
             );
         }

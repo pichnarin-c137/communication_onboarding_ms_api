@@ -24,6 +24,8 @@ class OnboardingPolicy extends Model
         'is_checked',
         'checked_at',
         'checked_by_user_id',
+        'unchecked_at',
+        'unchecked_by_user_id',
     ];
 
     protected $casts = [

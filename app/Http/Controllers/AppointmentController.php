@@ -19,8 +19,8 @@ use Illuminate\Http\Request;
 class AppointmentController extends Controller
 {
     public function __construct(
-        private AppointmentService $appointmentService,
-        private UserSettingsService $userSettingsService
+        private readonly AppointmentService $appointmentService,
+        private readonly UserSettingsService $userSettingsService
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -61,6 +61,9 @@ class AppointmentController extends Controller
         ]);
     }
 
+    /**
+     * @throws \Throwable
+     */
     public function store(CreateAppointmentRequest $request): JsonResponse
     {
         $appointment = $this->appointmentService->create(

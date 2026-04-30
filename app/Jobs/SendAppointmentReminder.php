@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Appointment;
+use App\Models\UserSetting;
 use App\Services\Notification\NotificationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -32,15 +33,16 @@ class SendAppointmentReminder implements ShouldQueue
             return;
         }
 
-        $date = $this->appointment->scheduled_date->format('Y-m-d');
-        $time = $this->appointment->scheduled_start_time;
+        $tz    = UserSetting::where('user_id', $this->appointment->trainer_id)->value('timezone') ?? config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh');
+        $date  = $this->appointment->scheduled_date->format('Y-m-d');
+        $time  = $this->appointment->scheduled_start_time;
         $label = $this->type === '24h' ? '24 hours' : '1 hour';
 
         $notificationService->notify(
             [$this->appointment->trainer_id],
             'appointment_reminder',
             'Appointment Reminder',
-            "You have an appointment in {$label}: {$this->appointment->title} on {$date} at {$time}.",
+            "You have an appointment in {$label}: {$this->appointment->title} on {$date} at {$time} ({$tz}).",
             ['type' => 'appointment', 'id' => $this->appointment->id],
         );
     }

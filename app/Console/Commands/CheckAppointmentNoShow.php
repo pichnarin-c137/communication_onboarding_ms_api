@@ -7,6 +7,7 @@ use App\Models\Appointment;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 
+//every 5 min Continuously — flags appointments 30+ min past start time
 class CheckAppointmentNoShow extends Command
 {
     protected $signature = 'appointment:check-no-show';
@@ -23,7 +24,8 @@ class CheckAppointmentNoShow extends Command
             ->get()
             ->filter(function (Appointment $appt) use ($thresholdMinutes) {
                 $scheduledAt = Carbon::parse(
-                    $appt->scheduled_date->format('Y-m-d').' '.$appt->scheduled_start_time
+                    $appt->scheduled_date->format('Y-m-d').' '.$appt->scheduled_start_time,
+                    config('coms.user_settings.defaults.timezone')
                 );
 
                 return now()->diffInMinutes($scheduledAt, false) <= -$thresholdMinutes;

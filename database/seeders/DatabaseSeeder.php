@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             BranchSeeder::class,
             ClientLinkAddressSeeder::class,
             BusinessTypeSeeder::class,
+            HorizonJobTestSeeder::class,
         ]);
     }
 }

@@ -10,6 +10,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class PreventMultiplePatch
 {
+    /**
+     * @throws MultiplePatchException
+     */
     public function handle(Request $request, Closure $next): Response
     {
         if ($request->isMethod('PATCH')) {
@@ -23,7 +26,7 @@ class PreventMultiplePatch
             // Prevent duplicate concurrent PATCH requests (same user + URL + body)
             $userId = $request->get('auth_user_id', $request->ip());
             $fingerprint = hash('sha256', $userId.'|'.$request->fullUrl().'|'.json_encode($body));
-            $cacheKey = "patch_lock:{$fingerprint}";
+            $cacheKey = "patch_lock:$fingerprint";
 
             if (Cache::has($cacheKey)) {
                 throw new MultiplePatchException('Duplicate request detected. Please wait before retrying.');

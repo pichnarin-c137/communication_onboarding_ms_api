@@ -32,7 +32,7 @@ class JwtAuthenticate
         }
 
         // Read timezone from token payload — set at login, no DB query needed
-        $timezone = $decoded->timezone ?? 'Asia/Phnom_Penh';
+        $timezone = $decoded->timezone ?? config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh');
 
         // Bind per-request so serializeUsing and services can read it
         app()->instance('request.timezone', $timezone);
