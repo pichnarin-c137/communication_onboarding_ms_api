@@ -2,6 +2,7 @@
 
 namespace App\Services\Onboarding;
 
+use App\Jobs\NotifyOnboardingStageCompletion;
 use App\Models\OnboardingRequest;
 use App\Services\Telegram\TelegramGroupService;
 use Illuminate\Support\Facades\Log;
@@ -102,5 +103,7 @@ class OnboardingProgressService
                 'error'         => $e->getMessage(),
             ]);
         }
+
+        NotifyOnboardingStageCompletion::dispatch($onboarding->id, $stepName, $progress);
     }
 }

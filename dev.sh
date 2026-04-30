@@ -28,6 +28,7 @@ docker compose up -d
 
 echo "Waiting for services to be healthy..."
 sleep 8
+docker compose exec -T app php artisan optimize:clear 2>/dev/null || true
 
 # Cloudflare named tunnel (runs on host, tunnels to Docker-exposed ports)
 # Uses /tmp to avoid Docker volume ownership issues on storage/logs/
@@ -44,24 +45,10 @@ for i in $(seq 1 20); do
     sleep 1
 done
 
-# Give Cloudflare edge a moment to fully propagate before Telegram tries to verify
-sleep 5
-
-# Register Telegram webhook — retry up to 3 times
-docker compose exec -T app php artisan optimize:clear 2>/dev/null || true
-WEBHOOK_REGISTERED=false
-for attempt in 1 2 3; do
-    if docker compose exec -T app php artisan telegram:set-webhook 2>&1; then
-        WEBHOOK_REGISTERED=true
-        break
-    fi
-    echo "Webhook attempt $attempt failed, retrying in 5s..."
-    sleep 5
-done
-if [ "$WEBHOOK_REGISTERED" = false ]; then
-    echo "  WARNING: Webhook registration failed. Run manually:"
-    echo "  docker compose exec app php artisan telegram:set-webhook"
-fi
+# Telegram webhook registration is intentionally skipped.
+# The telegram-bot container uses getUpdates long-polling and calls deleteWebhook
+# itself on startup. Registering a webhook while polling is active causes a 409.
+# Use `telegram:set-webhook` only when deploying to production without the polling container.
 
 echo ""
 echo "  COMS Dev Environment Ready"

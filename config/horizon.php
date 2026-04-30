@@ -97,7 +97,9 @@ return [
     */
 
     'waits' => [
+        'redis:high'    => 30,
         'redis:default' => 60,
+        'redis:reports' => 300,
     ],
 
     /*
@@ -183,7 +185,7 @@ return [
     |
     */
 
-    'memory_limit' => 64,
+    'memory_limit' => 256,
 
     /*
     |--------------------------------------------------------------------------
@@ -199,7 +201,7 @@ return [
     'defaults' => [
         'supervisor-1' => [
             'connection' => 'redis',
-            'queue' => ['default'],
+            'queue' => ['high', 'default', 'reports'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 3,

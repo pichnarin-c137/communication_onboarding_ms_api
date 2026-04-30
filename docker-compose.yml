@@ -144,6 +144,41 @@ services:
       - coms_network
     restart: unless-stopped
 
+  #  Scheduler
+  # Runs `php artisan schedule:work` which fires schedule:run every minute.
+  # This is what actually triggers: appointment reminders, no-show checks,
+  # SLA warnings, daily digest, weekly report, and horizon:snapshot.
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: coms_scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV: local
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: coms_dev
+      DB_USERNAME: coms_user
+      DB_PASSWORD: coms_pass
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+    volumes:
+      - .:/var/www/html
+      - ./storage/keys:/var/www/html/storage/keys
+    command: php artisan schedule:work
+    restart: unless-stopped
+    networks:
+      - coms_network
+
   #  Reverb (self-hosted WebSocket server — replaces Pusher cloud)
   reverb:
     build:
@@ -171,7 +206,7 @@ services:
     volumes:
       - .:/var/www/html
       - ./storage/keys:/var/www/html/storage/keys
-    command: php artisan reverb:start --host=0.0.0.0 --port=8080 --debug
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
     ports:
       - "127.0.0.1:8081:8080"
     restart: unless-stopped

@@ -134,4 +134,18 @@ return [
         'items_per_page_max' => 100,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Automated Reminders & Alerts
+    |--------------------------------------------------------------------------
+    */
+    'reminders' => [
+        'appointment_24h_window_minutes' => env('COMS_REMINDER_24H_WINDOW', 15),
+        'appointment_1h_window_minutes'  => env('COMS_REMINDER_1H_WINDOW', 10),
+        'no_show_threshold_minutes'      => env('COMS_NO_SHOW_THRESHOLD', 30),
+        'sla_warning_days_before'        => env('COMS_SLA_WARNING_DAYS', 3),
+    ],
+
+    'reports_queue' => env('COMS_REPORTS_QUEUE', 'reports'),
+
 ];

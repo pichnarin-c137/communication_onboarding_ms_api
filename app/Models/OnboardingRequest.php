@@ -34,6 +34,7 @@ class OnboardingRequest extends Model
         'revision_note',
         'due_date',
         'sla_breached_at',
+        'sla_warning_sent_at',
         'parent_onboarding_id',
         'cycle_number',
         'reopened_at',
@@ -53,6 +54,7 @@ class OnboardingRequest extends Model
         'completed_at' => 'datetime',
         'hold_started_at' => 'datetime',
         'sla_breached_at' => 'datetime',
+        'sla_warning_sent_at' => 'datetime',
         'reopened_at' => 'datetime',
         'due_date' => 'date:Y-m-d',
     ];

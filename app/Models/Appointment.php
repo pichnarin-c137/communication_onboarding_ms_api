@@ -57,6 +57,9 @@ class Appointment extends Model
         'is_onboarding_triggered',
         'is_continued_session',
         'related_onboarding_id',
+        'reminder_24h_sent_at',
+        'reminder_1h_sent_at',
+        'no_show_notified_at',
     ];
 
     protected $casts = [
@@ -87,6 +90,9 @@ class Appointment extends Model
         'reschedule_to_date' => 'string',
         'reschedule_to_start_time' => 'string',
         'reschedule_to_end_time' => 'string',
+        'reminder_24h_sent_at' => 'datetime',
+        'reminder_1h_sent_at' => 'datetime',
+        'no_show_notified_at' => 'datetime',
     ];
 
     public function trainer(): BelongsTo
