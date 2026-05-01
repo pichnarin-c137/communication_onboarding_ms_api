@@ -44,6 +44,7 @@ readonly class AppointmentService
         private EtaService $etaService,
         private TrainerTrackingService $trackingService,
         private CloudinaryService $cloudinaryService,
+        private AppointmentFeedbackService $feedbackService,
     ) {}
 
     // Read operations (cached)
@@ -391,6 +392,8 @@ readonly class AppointmentService
         if ($appt->appointment_type === 'demo') {
             $this->demoCompletionService->handle($appt);
         }
+
+        $this->generateFeedbackTokenQuietly($appt);
     }
 
     /**
@@ -770,6 +773,18 @@ readonly class AppointmentService
             Log::error('AppointmentService Telegram notification failed', [
                 'appointment_id' => $appointment->id,
                 'message_type' => $messageType,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function generateFeedbackTokenQuietly(Appointment $appt): void
+    {
+        try {
+            $this->feedbackService->generateAndNotify($appt);
+        } catch (Throwable $e) {
+            Log::error('AppointmentService: failed to generate feedback token', [
+                'appointment_id' => $appt->id,
                 'error' => $e->getMessage(),
             ]);
         }

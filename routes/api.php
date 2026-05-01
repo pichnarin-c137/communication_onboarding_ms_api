@@ -7,6 +7,7 @@ Route::prefix('v1')->group(function () {
     require __DIR__.'/api/auth.php';
     require __DIR__.'/api/users.php';
     require __DIR__.'/api/notifications.php';
+    require __DIR__.'/api/appointment_feedback.php';
     require __DIR__.'/api/appointments.php';
     require __DIR__.'/api/onboarding.php';
     require __DIR__.'/api/dashboard.php';

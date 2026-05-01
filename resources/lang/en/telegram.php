@@ -7,6 +7,7 @@ return [
     'training_on_the_way' => "Hello :client_name,\n\nYour trainer :trainer_name is on the way for your training session.\n\nEstimated arrival time: :time\n\nPlease be ready.",
     'training_started' => "Hello :client_name,\n\nYour training session has started.\n\nTrainer: :trainer_name\nStart time: :time\n\nEnjoy your training!",
     'training_completed' => "Hello :client_name,\n\nYour training session on :date has been completed.\n\nThank you for participating.",
+    'appointment_feedback_link' => "Hello :client_name,\n\nThe session ':appointment_title' has been completed.\n\nWe'd love to hear your feedback!\n\nClick the link below:\n:feedback_url\n\nThank you!",
     'onboarding_started' => "Hello :client_name,\n\nYour onboarding process has started.\n\nOur team will guide you through each step. Please stay tuned for updates.",
     'onboarding_step_completed' => "Hello :client_name,\n\nOnboarding step completed: :step_name\n\nProgress: :progress%\n\nWell done!",
     'lesson_sent' => "Hello :client_name,\n\nA new lesson has been sent to you.\n\nLesson: :lesson_name\nYouTube Link: :lesson_url\n\nPlease review it at your earliest convenience.",

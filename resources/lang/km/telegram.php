@@ -7,6 +7,7 @@ return [
     'training_on_the_way' => "សួស្តី :client_name,\n\nគ្រូបង្វឹករបស់អ្នក :trainer_name កំពុងមកដល់សម្រាប់វគ្គបណ្តុះបណ្តាលរបស់អ្នក។\n\nម៉ោងមកដល់ប្រហែល: :time\n\nសូមត្រៀមខ្លួន។",
     'training_started' => "សួស្តី :client_name,\n\nវគ្គបណ្តុះបណ្តាលរបស់អ្នកបានចាប់ផ្តើម។\n\nគ្រូបង្វឹក: :trainer_name\nម៉ោងចាប់ផ្តើម: :time\n\nសូមរីករាយជាមួយវគ្គបណ្តុះបណ្តាលរបស់អ្នក!",
     'training_completed' => "សួស្តី :client_name,\n\nវគ្គបណ្តុះបណ្តាលរបស់អ្នកនៅថ្ងៃ :date បានបញ្ចប់។\n\nអរគុណចំពោះការចូលរួម។",
+    'appointment_feedback_link' => "សួស្តី :client_name,\n\nវគ្គ ':appointment_title' បានបញ្ចប់។\n\nយើងសង្ឃឹមទទួលបានមតិយោបល់របស់អ្នក!\n\nសូមចុចលីងខាងក្រោម:\n:feedback_url\n\nអរគុណ!",
     'onboarding_started' => "សួស្តី :client_name,\n\nដំណើរការ Onboarding របស់អ្នកបានចាប់ផ្តើម។\n\nក្រុមការងាររបស់យើងនឹងណែនាំអ្នកគ្រប់ជំហាន។",
     'onboarding_step_completed' => "សួស្តី :client_name,\n\nជំហាន Onboarding បានបញ្ចប់: :step_name\n\nវឌ្ឍនភាព: :progress%\n\nអបអរសាទរ!",
     'lesson_sent' => "សួស្តី :client_name,\n\nមេរៀនថ្មីត្រូវបានផ្ញើទៅអ្នក។\n\nមេរៀន: :lesson_name\nតំណ YouTube: :lesson_url\n\nសូមពិនិត្យឱ្យបានឆាប់។",

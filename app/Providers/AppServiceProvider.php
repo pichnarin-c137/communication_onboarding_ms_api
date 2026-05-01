@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Services\Appointment\AppointmentConflictService;
 use App\Services\Appointment\AppointmentService;
 use App\Services\Appointment\AppointmentStatusService;
+use App\Services\Appointment\AppointmentFeedbackService;
 use App\Services\Appointment\DemoCompletionService;
 use App\Services\Business\BusinessTypeService;
 use App\Services\Business\CompanyService;
@@ -52,6 +53,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AppointmentConflictService::class);
         $this->app->singleton(AppointmentStatusService::class);
         $this->app->singleton(DemoCompletionService::class);
+        $this->app->singleton(AppointmentFeedbackService::class);
         $this->app->singleton(OnboardingTriggerService::class);
         $this->app->singleton(AppointmentService::class);
 
