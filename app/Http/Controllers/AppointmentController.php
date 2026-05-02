@@ -11,6 +11,7 @@ use App\Http\Requests\StartAppointmentRequest;
 use App\Http\Requests\UpdateAppointmentRequest;
 use App\Models\Appointment;
 use App\Models\User;
+use App\Services\Appointment\AppointmentFeedbackService;
 use App\Services\Appointment\AppointmentService;
 use App\Services\UserSettingsService;
 use Illuminate\Http\JsonResponse;
@@ -20,7 +21,8 @@ class AppointmentController extends Controller
 {
     public function __construct(
         private readonly AppointmentService $appointmentService,
-        private readonly UserSettingsService $userSettingsService
+        private readonly UserSettingsService $userSettingsService,
+        private readonly AppointmentFeedbackService $appointmentFeedbackService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -58,6 +60,7 @@ class AppointmentController extends Controller
             'success' => true,
             'data' => $appointment,
             'travel_estimates' => $travelEstimates ?: null,
+            'respondent_feedback' => $this->appointmentFeedbackService->getForAppointment($id) ?: null,
         ]);
     }
 

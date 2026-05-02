@@ -8,7 +8,7 @@ Route::get('/appointments/feedback/{token}', [AppointmentFeedbackController::cla
 Route::post('/appointments/feedback/{token}', [AppointmentFeedbackController::class, 'submitViaForm'])
     ->name('appointments.feedback.submit');
 
-Route::middleware(['jwt.auth', 'throttle:api', 'role:sale,admin'])->group(function () {
+Route::middleware(['jwt.auth', 'throttle:api', 'role:sale,admin,trainer'])->group(function () {
     Route::get('/appointments/{id}/feedback', [AppointmentFeedbackController::class, 'index'])
         ->name('appointments.feedback.index');
 });

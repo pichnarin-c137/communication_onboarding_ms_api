@@ -37,24 +37,24 @@ class AppointmentFeedbackController extends Controller
             $this->feedbackService->submit($token, $request->validated());
 
             return response(view('feedback.appointment_form', [
-                'state'       => 'success',
+                'state' => 'success',
                 'appointment' => null,
-                'errors'      => $emptyErrors,
+                'errors' => $emptyErrors,
             ]));
         } catch (FeedbackAlreadySubmittedException $e) {
             return response(view('feedback.appointment_form', [
-                'state'       => 'already_submitted',
+                'state' => 'already_submitted',
                 'appointment' => null,
-                'errors'      => $emptyErrors,
+                'errors' => $emptyErrors,
             ]));
         } catch (ValidationException $e) {
             $tokenError = $e->errors()['token'][0] ?? '';
             $state = str_contains($tokenError, 'expired') ? 'expired' : 'invalid';
 
             return response(view('feedback.appointment_form', [
-                'state'       => $state,
+                'state' => $state,
                 'appointment' => null,
-                'errors'      => $emptyErrors,
+                'errors' => $emptyErrors,
             ]));
         }
     }
@@ -65,7 +65,7 @@ class AppointmentFeedbackController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $feedbacks,
+            'data' => $feedbacks,
         ]);
     }
 }

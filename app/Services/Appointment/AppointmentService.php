@@ -118,7 +118,7 @@ readonly class AppointmentService
         $ttl = config('coms.cache.appointment_show_ttl', 600);
 
         return Cache::store('redis')->remember($cacheKey, $ttl, function () use ($id) {
-            return Appointment::with(['trainer', 'client', 'creator', 'students', 'materials', 'startProof', 'endProof'])
+            return Appointment::with(['trainer', 'client', 'creator', 'startProof',  'endProof'])
                 ->findOrFail($id);
         });
     }
@@ -446,7 +446,7 @@ readonly class AppointmentService
      */
     public function reschedule(Appointment $appt, array $newSchedule): Appointment
     {
-        $wasActive = in_array($appt->status, ['leave_office', 'in_progress']);
+        $wasActive = $appt->status == 'pending';
 
         $newAppt = DB::transaction(function () use ($appt, $newSchedule) {
             $this->statusService->validateTransition($appt, 'rescheduled');
@@ -484,6 +484,7 @@ readonly class AppointmentService
                     'is_continued_session',
                 ]),
                 [
+                    'appointment_code' => $this->generateAppointmentCode($appt->appointment_type),
                     'scheduled_date' => $newSchedule['scheduled_date'],
                     'scheduled_start_time' => $newSchedule['scheduled_start_time'],
                     'scheduled_end_time' => $newSchedule['scheduled_end_time'],
