@@ -34,7 +34,6 @@ readonly class OnboardingService
     ) {}
 
     // Read operations (cached)
-
     public function list(User $user, array $filters = [], int $perPage = 15, int $page = 1): array
     {
         $cacheKey = $this->listCacheKey($user->id);
@@ -49,7 +48,10 @@ readonly class OnboardingService
             ]);
 
             if ($role === 'trainer') {
-                $query->where('trainer_id', $user->id);
+                $query->where(function ($q) use ($user) {
+                    $q->where('trainer_id', $user->id)
+                        ->orWhereHas('appointment', fn ($appointment) => $appointment->where('creator_id', $user->id));
+                });
             } elseif ($role === 'sale') {
                 $query->whereHas('appointment', fn ($q) => $q->where('creator_id', $user->id));
             }
@@ -802,6 +804,15 @@ readonly class OnboardingService
 
         if ($trainerId) {
             Cache::store('redis')->forget($this->listCacheKey($trainerId));
+        }
+
+        $creatorId = OnboardingRequest::query()
+            ->with('appointment:id,creator_id')
+            ->find($onboardingId)
+            ?->appointment?->creator_id;
+
+        if ($creatorId) {
+            Cache::store('redis')->forget($this->listCacheKey($creatorId));
         }
     }
 

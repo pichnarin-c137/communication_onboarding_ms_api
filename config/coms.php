@@ -146,6 +146,19 @@ return [
         'sla_warning_days_before'        => env('COMS_SLA_WARNING_DAYS', 3),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Appointment Health Thresholds
+    |--------------------------------------------------------------------------
+    */
+    'appointment_health' => [
+        'pending_too_long_days'      => env('COMS_PENDING_TOO_LONG_DAYS', 3),
+        'starting_late_minutes'      => env('COMS_STARTING_LATE_MINUTES', 15),
+        'late_to_client_minutes'     => env('COMS_LATE_TO_CLIENT_MINUTES', 30),
+        'overtime_threshold_minutes' => env('COMS_OVERTIME_MINUTES', 15),
+        'started_late_minutes'       => env('COMS_STARTED_LATE_MINUTES', 20),
+    ],
+
     'reports_queue' => env('COMS_REPORTS_QUEUE', 'reports'),
 
 ];

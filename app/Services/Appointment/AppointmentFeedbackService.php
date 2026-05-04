@@ -3,12 +3,13 @@
 namespace App\Services\Appointment;
 
 use App\Exceptions\Business\FeedbackAlreadySubmittedException;
+use App\Http\Resources\AppointmentFeedbackResource;
 use App\Models\Appointment;
 use App\Models\AppointmentFeedback;
 use App\Models\AppointmentFeedbackToken;
 use App\Models\FeedbackRespondent;
 use App\Services\Telegram\TelegramGroupService;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -155,11 +156,35 @@ readonly class AppointmentFeedbackService
         return $feedback;
     }
 
-    public function getForAppointment(string $appointmentId): Collection
+    public function getForAppointment(string $appointmentId): AnonymousResourceCollection
     {
-        return AppointmentFeedback::with('respondent')
+        $data = AppointmentFeedback::with('respondent')
             ->where('appointment_id', $appointmentId)
             ->orderByDesc('submitted_at')
             ->get();
+
+        return AppointmentFeedbackResource::collection($data);
+    }
+
+    public function getOverallRating(array|string $appointmentId): array|string|null
+    {
+        $appointmentIds = is_array($appointmentId)
+            ? $appointmentId
+            : [$appointmentId];
+
+        $results = AppointmentFeedback::selectRaw(
+            'appointment_id::text as appointment_id, AVG(rating::double precision) as average_rating'
+        )
+            ->whereIn('appointment_id', $appointmentIds)
+            ->groupByRaw('appointment_id::text')
+            ->get()
+            ->mapWithKeys(fn ($row) => [
+                $row->appointment_id => number_format((float) $row->average_rating, 2, '.', ''),
+            ])
+            ->toArray();
+
+        return is_string($appointmentId)
+            ? ($results[$appointmentId] ?? null)
+            : $results;
     }
 }

@@ -11,6 +11,7 @@ use App\Http\Requests\StartAppointmentRequest;
 use App\Http\Requests\UpdateAppointmentRequest;
 use App\Models\Appointment;
 use App\Models\User;
+use App\Services\Appointment\AppointmentAnalyticsService;
 use App\Services\Appointment\AppointmentFeedbackService;
 use App\Services\Appointment\AppointmentService;
 use App\Services\UserSettingsService;
@@ -23,6 +24,7 @@ class AppointmentController extends Controller
         private readonly AppointmentService $appointmentService,
         private readonly UserSettingsService $userSettingsService,
         private readonly AppointmentFeedbackService $appointmentFeedbackService,
+        private readonly AppointmentAnalyticsService $analyticsService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -44,10 +46,19 @@ class AppointmentController extends Controller
 
         $result = $this->appointmentService->list($user, $filters, $perPage, $page);
 
+        $data = $result['data']->map(fn ($appt) => array_merge(
+            $appt->toArray(),
+            [
+                'health' => $this->analyticsService->healthFlag($appt)
+            ],
+
+        ));
+
         return response()->json([
             'success' => true,
-            'data' => $result['data'],
+            'data' => $data,
             'meta' => $result['meta'],
+            'analytics' => $this->analyticsService->listAnalytics($authRole, $result['collection']),
         ]);
     }
 
@@ -59,6 +70,7 @@ class AppointmentController extends Controller
         return response()->json([
             'success' => true,
             'data' => $appointment,
+            'analytics' => $this->analyticsService->showAnalytics($appointment),
             'travel_estimates' => $travelEstimates ?: null,
             'respondent_feedback' => $this->appointmentFeedbackService->getForAppointment($id) ?: null,
         ]);

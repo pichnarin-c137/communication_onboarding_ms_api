@@ -25,10 +25,10 @@ class OnboardingController extends Controller
         $filters = $request->only(['status', 'search', 'date_from', 'date_to', 'trainer_id']);
         $authRole = $request->get('auth_role');
 
-        if ($authRole === 'trainer') {
-            $filters['trainer_id'] = $request->get('auth_user_id');
-        } elseif ($authRole === 'sale') {
+        if ($authRole === 'sale') {
             $filters['trainer_id'] = $request->input('trainer_id');
+        } elseif ($authRole === 'trainer') {
+            unset($filters['trainer_id']);
         }
 
         $perPage = max(1, min(100, (int) $request->input('per_page', 15)));

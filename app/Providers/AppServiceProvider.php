@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\Appointment\AppointmentAnalyticsService;
 use App\Services\Appointment\AppointmentConflictService;
 use App\Services\Appointment\AppointmentService;
 use App\Services\Appointment\AppointmentStatusService;
@@ -50,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(TelegramService::class);
 
         // Appointment layer
+        $this->app->singleton(AppointmentAnalyticsService::class);
         $this->app->singleton(AppointmentConflictService::class);
         $this->app->singleton(AppointmentStatusService::class);
         $this->app->singleton(DemoCompletionService::class);
