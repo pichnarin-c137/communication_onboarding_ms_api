@@ -525,6 +525,102 @@ class OnboardingExpansionTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
+    // List visibility / cache refresh
+    // -------------------------------------------------------------------------
+
+    public function test_sales_list_refreshes_after_onboarding_status_change(): void
+    {
+        $sale = $this->createUser(['role' => 'sale']);
+        $trainer = $this->createUser(['role' => 'trainer']);
+        $client = Client::factory()->create(['assigned_sale_id' => $sale->id]);
+
+        $appointment = Appointment::create([
+            'appointment_code' => 'APT-LIST-001',
+            'title' => 'List Cache Test',
+            'appointment_type' => 'training',
+            'location_type' => 'online',
+            'status' => 'done',
+            'trainer_id' => $trainer->id,
+            'client_id' => $client->id,
+            'creator_id' => $sale->id,
+            'scheduled_date' => now()->toDateString(),
+            'scheduled_start_time' => now(),
+            'scheduled_end_time' => now()->addHour(),
+            'is_onboarding_triggered' => true,
+            'is_continued_session' => false,
+        ]);
+
+        $onboarding = OnboardingRequest::create([
+            'request_code' => 'APT-2026-LIST',
+            'appointment_id' => $appointment->id,
+            'client_id' => $client->id,
+            'trainer_id' => $trainer->id,
+            'status' => 'pending',
+            'progress_percentage' => 0,
+        ]);
+
+        $initial = $this->getJson('/api/v1/onboarding', $this->authHeadersFor($sale));
+        $initial->assertStatus(200);
+
+        $initialRow = collect($initial->json('data'))->firstWhere('id', $onboarding->id);
+        $this->assertNotNull($initialRow);
+        $this->assertSame('pending', $initialRow['status']);
+
+        $this->patchJson(
+            "/api/v1/onboarding/{$onboarding->id}/start",
+            [],
+            $this->authHeadersFor($trainer)
+        )->assertStatus(200);
+
+        $refreshed = $this->getJson('/api/v1/onboarding', $this->authHeadersFor($sale));
+        $refreshed->assertStatus(200);
+
+        $refreshedRow = collect($refreshed->json('data'))->firstWhere('id', $onboarding->id);
+        $this->assertNotNull($refreshedRow);
+        $this->assertSame('in_progress', $refreshedRow['status']);
+    }
+
+    public function test_trainer_can_see_onboardings_created_by_them(): void
+    {
+        $creatorTrainer = $this->createUser(['role' => 'trainer']);
+        $assignedTrainer = $this->createUser(['role' => 'trainer']);
+        $client = Client::factory()->create();
+
+        $appointment = Appointment::create([
+            'appointment_code' => 'APT-LIST-002',
+            'title' => 'Trainer Created Onboarding',
+            'appointment_type' => 'training',
+            'location_type' => 'online',
+            'status' => 'done',
+            'trainer_id' => $assignedTrainer->id,
+            'client_id' => $client->id,
+            'creator_id' => $creatorTrainer->id,
+            'scheduled_date' => now()->toDateString(),
+            'scheduled_start_time' => now(),
+            'scheduled_end_time' => now()->addHour(),
+            'is_onboarding_triggered' => true,
+            'is_continued_session' => false,
+        ]);
+
+        $onboarding = OnboardingRequest::create([
+            'request_code' => 'APT-2026-LIST-2',
+            'appointment_id' => $appointment->id,
+            'client_id' => $client->id,
+            'trainer_id' => $assignedTrainer->id,
+            'status' => 'pending',
+            'progress_percentage' => 0,
+        ]);
+
+        $response = $this->getJson('/api/v1/onboarding', $this->authHeadersFor($creatorTrainer));
+        $response->assertStatus(200);
+
+        $row = collect($response->json('data'))->firstWhere('id', $onboarding->id);
+        $this->assertNotNull($row);
+        $this->assertSame($onboarding->id, $row['id']);
+        $this->assertSame('pending', $row['status']);
+    }
+
+    // -------------------------------------------------------------------------
     // Due date
     // -------------------------------------------------------------------------
 

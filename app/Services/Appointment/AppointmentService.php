@@ -97,7 +97,20 @@ readonly class AppointmentService
             ->values();
 
         $total = $filtered->count();
-        $items = $filtered->forPage($page, $perPage)->values();
+
+        $items = $filtered
+            ->forPage($page, $perPage)
+            ->values();
+
+        $ratings = $this->feedbackService->getOverallRating(
+            $items->pluck('id')->toArray()
+        );
+
+        $items = $items->map(function ($appt) use ($ratings) {
+            $appt->overall_rating = $ratings[$appt->id] ?? null;
+
+            return $appt;
+        });
 
         return [
             'data' => $items,
@@ -109,6 +122,7 @@ readonly class AppointmentService
                 'from' => $total > 0 ? ($page - 1) * $perPage + 1 : 0,
                 'to' => min($page * $perPage, $total),
             ],
+            'collection' => $filtered, // full filtered set, used by controller for analytics
         ];
     }
 

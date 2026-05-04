@@ -34,9 +34,4 @@ class FeedbackRespondent extends Model
     {
         return $this->belongsTo(Client::class);
     }
-
-    public function feedbacks(): HasMany
-    {
-        return $this->hasMany(AppointmentFeedback::class, 'respondent_id');
-    }
 }
