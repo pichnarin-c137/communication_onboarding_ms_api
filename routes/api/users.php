@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\MediaPresignController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,5 +25,7 @@ Route::middleware(['jwt.auth', 'throttle:api'])->group(function () {
 
     Route::middleware(['role:sale,trainer'])->group(function () {
         Route::post('/media', [MediaController::class, 'upload'])->middleware('throttle:media_upload');
+        Route::post('/media/presign', [MediaPresignController::class, 'presign'])->middleware('throttle:media_upload');
+        Route::post('/media/confirm', [MediaPresignController::class, 'confirm'])->middleware('throttle:media_upload');
     });
 });

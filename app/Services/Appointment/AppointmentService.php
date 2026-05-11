@@ -14,7 +14,6 @@ use App\Models\Branch;
 use App\Models\Client;
 use App\Models\Media;
 use App\Models\User;
-use App\Services\CloudinaryService;
 use App\Services\Logging\ActivityLogger;
 use App\Services\Notification\NotificationService;
 use App\Services\Onboarding\OnboardingTriggerService;
@@ -43,7 +42,6 @@ readonly class AppointmentService
         private TrainerStatusService $trainerStatusService,
         private EtaService $etaService,
         private TrainerTrackingService $trackingService,
-        private CloudinaryService $cloudinaryService,
         private AppointmentFeedbackService $feedbackService,
     ) {}
 
@@ -313,7 +311,7 @@ readonly class AppointmentService
             }
         }
 
-        $startProofMedia = $this->handleProofMedia($proofMedia, $appt->trainer_id, 'start_proof');
+        $startProofMedia = $this->handleProofMedia($proofMedia);
 
         $appt->update([
             'status' => 'in_progress',
@@ -362,7 +360,7 @@ readonly class AppointmentService
     ): void {
         $this->statusService->validateTransition($appt, 'done');
 
-        $endProofMedia = $this->handleProofMedia($endProofMedia, $appt->trainer_id ?? $completingUserId, 'complete_proof');
+        $endProofMedia = $this->handleProofMedia($endProofMedia);
 
         $appt->update([
             'status' => 'done',
@@ -886,30 +884,16 @@ readonly class AppointmentService
     }
 
     /**
-     * Helper to handle proof media.
-     * Strictly treats $proof as a Base64 string, uploads to Cloudinary,
-     * and returns the new Media record ID.
+     * Validate that the given media_id references an existing Media record
+     * and return it. The media record is created upstream via the R2 presign/confirm flow.
      */
-    private function handleProofMedia(string $proof, ?string $userId, string $category): string
+    private function handleProofMedia(string $mediaId): string
     {
-        $cloudinaryData = $this->cloudinaryService->upload($proof, $category);
-
-        if (! $cloudinaryData) {
-            throw new RuntimeException('Failed to upload proof to Cloudinary. Ensure valid Base64 string with Data URI prefix (e.g. data:image/png;base64,...)');
+        if (! Media::where('id', $mediaId)->exists()) {
+            throw new RuntimeException('Invalid media_id: the referenced media record does not exist.');
         }
 
-        $media = Media::create([
-            'filename' => basename($cloudinaryData['url']),
-            'original_filename' => "proof_$category.png",
-            'file_url' => $cloudinaryData['url'],
-            'file_size' => $cloudinaryData['size'],
-            'mime_type' => $cloudinaryData['mime_type'],
-            'media_category' => 'other',
-            'uploaded_by_user_id' => $userId,
-            'cloudinary_public_id' => $cloudinaryData['public_id'],
-        ]);
-
-        return $media->id;
+        return $mediaId;
     }
 
     // Cache invalidation helpers

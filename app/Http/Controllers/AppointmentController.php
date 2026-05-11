@@ -128,7 +128,7 @@ class AppointmentController extends Controller
 
         $this->appointmentService->startAppointment(
             $appointment,
-            $request->input('start_proof_media'),
+            $request->input('start_proof_media_id'),
             (float) $request->input('start_latitude'),
             (float) $request->input('start_longitude')
         );
@@ -146,7 +146,7 @@ class AppointmentController extends Controller
 
         $this->appointmentService->completeAppointment(
             $appointment,
-            $request->input('end_proof_media'),
+            $request->input('end_proof_media_id'),
             (float) $request->input('end_latitude'),
             (float) $request->input('end_longitude'),
             (int) $request->input('student_count'),
