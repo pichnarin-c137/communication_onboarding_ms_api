@@ -36,3 +36,4 @@ CLAUDE.md
 postman_collection.json
 dev.sh
 /deploy
+/db_backup

@@ -7,6 +7,10 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
+/**
+ * @deprecated Use \App\Services\R2Service instead (presigned URL flow).
+ *             Kept for MediaController backward compatibility until fully removed.
+ */
 class CloudinaryService
 {
     private ?string $cloudName;

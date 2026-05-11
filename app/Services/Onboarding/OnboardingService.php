@@ -15,7 +15,7 @@ use App\Models\OnboardingRevisionHistory;
 use App\Models\OnboardingSystemAnalysis;
 use App\Models\OnboardingTrainerAssignment;
 use App\Models\User;
-use App\Services\CloudinaryService;
+use App\Models\Media;
 use App\Services\Notification\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -30,7 +30,6 @@ readonly class OnboardingService
         private OnboardingProgressService $progressService,
         private LessonSendService $lessonSendService,
         private NotificationService $notificationService,
-        private CloudinaryService $cloudinaryService,
     ) {}
 
     // Read operations (cached)
@@ -596,9 +595,9 @@ readonly class OnboardingService
         // Decode the incoming content JSON (company name, phone, etc.) into an array
         $contentArray = json_decode($data['content'] ?? '{}', true) ?? [];
 
-        // Upload logo / patent images to Cloudinary if Base64 data URIs were provided
-        $this->uploadBase64ToContent($contentArray, $data['logo_base64'] ?? null, 'logos', 'logo_url', $info->onboarding_id);
-        $this->uploadBase64ToContent($contentArray, $data['patent_document_base64'] ?? null, 'patents', 'patent_image_url', $info->onboarding_id);
+        // Resolve logo / patent image URLs from already-confirmed Media records
+        $this->resolveMediaUrl($contentArray, $data['logo_media_id'] ?? null, 'logo_url');
+        $this->resolveMediaUrl($contentArray, $data['patent_media_id'] ?? null, 'patent_image_url');
 
         $updateData = ['content' => json_encode($contentArray, JSON_UNESCAPED_UNICODE)];
 
@@ -770,19 +769,15 @@ readonly class OnboardingService
 
     // Private helpers
 
-    private function uploadBase64ToContent(array &$contentArray, ?string $base64, string $category, string $urlKey, string $onboardingId): void
+    private function resolveMediaUrl(array &$contentArray, ?string $mediaId, string $urlKey): void
     {
-        if (empty($base64)) {
+        if (empty($mediaId)) {
             return;
         }
 
-        $result = $this->cloudinaryService->upload($base64, $category);
-        if ($result) {
-            $contentArray[$urlKey] = $result['url'];
-        } else {
-            Log::warning("OnboardingService: $category Cloudinary upload failed.", [
-                'onboarding_id' => $onboardingId,
-            ]);
+        $media = Media::find($mediaId);
+        if ($media) {
+            $contentArray[$urlKey] = $media->file_url;
         }
     }
 

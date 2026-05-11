@@ -7,6 +7,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "ext-imagick": "*",
         "firebase/php-jwt": "^7.0",
         "laravel/framework": "^12.0",
         "laravel/horizon": "^5.45",
@@ -14,10 +15,10 @@
         "laravel/socialite": "^5.24",
         "laravel/telescope": "^5.18",
         "laravel/tinker": "^2.10.1",
+        "league/flysystem-aws-s3-v3": "^3.32",
         "pusher/pusher-php-server": "^7.2",
         "smalot/pdfparser": "*",
-        "thiagoalessio/tesseract_ocr": "*",
-        "ext-imagick": "*"
+        "thiagoalessio/tesseract_ocr": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

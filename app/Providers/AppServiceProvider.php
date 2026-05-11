@@ -30,6 +30,7 @@ use App\Services\Tracking\AnomalyDetectionService;
 use App\Services\Tracking\EtaService;
 use App\Services\Tracking\TrainerStatusService;
 use App\Services\Tracking\TrainerTrackingService;
+use App\Services\R2Service;
 use App\Services\UserSettingsService;
 use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -49,6 +50,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(UserSettingsService::class);
         $this->app->singleton(NotificationService::class);
         $this->app->singleton(TelegramService::class);
+        $this->app->singleton(R2Service::class);
 
         // Appointment layer
         $this->app->singleton(AppointmentAnalyticsService::class);

@@ -16,10 +16,10 @@ class UpdateOnboardingCompanyInfoRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'content'                => ['nullable', 'string', 'json'],
-            'is_completed'           => ['nullable', 'boolean'],
-            'logo_base64'            => ['nullable', 'string', 'regex:/^data:image\/(jpeg|png|webp);base64,/'],
-            'patent_document_base64' => ['nullable', 'string', 'regex:/^data:image\/(jpeg|png|webp);base64,/'],
+            'content'        => ['nullable', 'string', 'json'],
+            'is_completed'   => ['nullable', 'boolean'],
+            'logo_media_id'  => ['nullable', 'uuid', 'exists:media,id'],
+            'patent_media_id' => ['nullable', 'uuid', 'exists:media,id'],
         ];
     }
 
