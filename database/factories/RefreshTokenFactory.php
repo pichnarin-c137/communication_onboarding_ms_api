@@ -2,12 +2,13 @@
 
 namespace Database\Factories;
 
+use App\Models\RefreshToken;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\RefreshToken>
+ * @extends Factory<RefreshToken>
  */
 class RefreshTokenFactory extends Factory
 {

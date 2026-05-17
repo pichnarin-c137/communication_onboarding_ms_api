@@ -35,7 +35,7 @@ class OtpService
      */
     public function generateOtp(): string
     {
-        if (config('app.env') === 'local') {
+        if (config('otp.bypass_otp')) {
             return self::DEV_OTP;
         }
 
@@ -62,8 +62,8 @@ class OtpService
                 'otp_expiry' => Carbon::now()->addMinutes($expiryMinutes),
             ]);
 
-            // Skip sending email in local environment to speed up testing
-            if (config('app.env') === 'local') {
+            // Skip sending email when bypass is enabled
+            if (config('otp.bypass_otp')) {
                 return;
             }
 
@@ -88,8 +88,7 @@ class OtpService
      */
     public function verifyOtp(Credential $credential, string $otp): bool
     {
-        // Allow fixed OTP in local environment
-        if (config('app.env') === 'local' && $otp === self::DEV_OTP) {
+        if (config('otp.bypass_otp') && $otp === self::DEV_OTP) {
             $credential->clearOtp();
             return true;
         }

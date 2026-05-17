@@ -19,7 +19,7 @@ class SetTelegramWebhook extends Command
 
     public function handle(): int
     {
-        $botToken   = config('services.telegram.bot_token', '');
+        $botToken = config('services.telegram.bot_token', '');
         $webhookUrl = env('TELEGRAM_WEBHOOK_URL', '');
 
         if (! $botToken) {
@@ -41,7 +41,7 @@ class SetTelegramWebhook extends Command
         $response = Http::post(
             "https://api.telegram.org/bot{$botToken}/setWebhook",
             array_filter([
-                'url'          => $webhookUrl,
+                'url' => $webhookUrl,
                 'secret_token' => $secretToken ?: null,
             ])
         );

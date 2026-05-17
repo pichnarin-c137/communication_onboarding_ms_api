@@ -7,6 +7,7 @@ use App\Http\Requests\Onboarding\ReassignTrainerRequest;
 use App\Http\Requests\Onboarding\RequestRevisionRequest;
 use App\Http\Requests\Onboarding\SetDueDateRequest;
 use App\Models\OnboardingRequest;
+use App\Models\OnboardingRevisionHistory;
 use App\Models\OnboardingTrainerAssignment;
 use App\Models\User;
 use App\Services\Onboarding\OnboardingService;
@@ -175,7 +176,7 @@ class OnboardingController extends Controller
 
     public function revisionHistory(string $id): JsonResponse
     {
-        $history = \App\Models\OnboardingRevisionHistory::with([
+        $history = OnboardingRevisionHistory::with([
             'requestedBy:id,first_name,last_name',
             'acknowledgedBy:id,first_name,last_name',
         ])

@@ -2,15 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Exceptions\MailDeliveryException;
 use App\Exceptions\UserNotFoundException;
 use App\Http\Requests\AdminCreateUserRequest;
+use App\Http\Requests\UpdateUserCredentialsRequest;
 use App\Http\Requests\UpdateUserInformationRequest;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Random\RandomException;
-use Throwable;
 
 class UserController extends Controller
 {
@@ -18,11 +16,6 @@ class UserController extends Controller
         private readonly UserService $userService
     ) {}
 
-    /**
-     * Get logged-in user profile
-     *
-     * @throws UserNotFoundException
-     */
     public function getProfile(Request $request): JsonResponse
     {
         $userId = $request->get('auth_user_id');
@@ -34,11 +27,6 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Get user by Id
-     *
-     * @throws UserNotFoundException
-     */
     public function getUserById(string $userId): JsonResponse
     {
         $user = $this->userService->getUserProfile($userId);
@@ -49,14 +37,11 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Get list of all users - can be filtered by role or status
-     */
     public function listUsers(Request $request): JsonResponse
     {
         $filters = $request->only([
             'role', 'gender', 'is_suspended', 'nationality', 'search',
-            'with_trashed', 'only_trashed', 'sort_by', 'sort_order',
+            'only_trashed', 'only_active', 'sort_by', 'sort_order',
             'per_page', 'page',
         ]);
 
@@ -95,9 +80,6 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Create new user (admin only - can create users with any role)
-     */
     public function createUser(AdminCreateUserRequest $request): JsonResponse
     {
         $userData = $request->only([
@@ -108,34 +90,30 @@ class UserController extends Controller
             'email', 'username', 'phone_number', 'password',
         ]);
 
-        $personalInfoData = [
+        $personalInfoData = array_filter([
             'professtional_photo' => $request->file('professtional_photo'),
             'nationality_card' => $request->file('nationality_card'),
             'family_book' => $request->file('family_book'),
             'birth_certificate' => $request->file('birth_certificate'),
             'degreee_certificate' => $request->file('degreee_certificate'),
             'social_media' => $request->input('social_media'),
-        ];
+        ]);
 
-        $emergencyContactData = [
+        $emergencyContactData = array_filter([
             'contact_first_name' => $request->input('contact_first_name'),
             'contact_last_name' => $request->input('contact_last_name'),
             'contact_relationship' => $request->input('contact_relationship'),
             'contact_phone_number' => $request->input('contact_phone_number'),
             'contact_address' => $request->input('contact_address'),
             'contact_social_media' => $request->input('contact_social_media'),
-        ];
+        ]);
 
-        try {
-            $user = $this->userService->createUser(
-                $userData,
-                $credentialData,
-                $personalInfoData,
-                $emergencyContactData
-            );
-        } catch (MailDeliveryException|RandomException|Throwable) {
-
-        }
+        $user = $this->userService->createUser(
+            $userData,
+            $credentialData,
+            $personalInfoData,
+            $emergencyContactData
+        );
 
         return response()->json([
             'success' => true,
@@ -147,11 +125,47 @@ class UserController extends Controller
         ], 201);
     }
 
-    /**
-     * Soft delete user (admin only)
-     *
-     * @throws UserNotFoundException
-     */
+    public function toggleSuspension(string $userId): JsonResponse
+    {
+        $user = $this->userService->toggleSuspension($userId);
+
+        return response()->json([
+            'success' => true,
+            'message' => $user->is_suspended ? 'User suspended successfully' : 'User unsuspended successfully',
+            'data' => [
+                'user_id' => $user->id,
+                'is_suspended' => $user->is_suspended,
+            ],
+        ]);
+    }
+
+    public function updateCredentials(UpdateUserCredentialsRequest $request, string $userId): JsonResponse
+    {
+        $data = $request->only(['email', 'username', 'phone_number']);
+        $credential = $this->userService->updateCredentials($userId, $data);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Credentials updated successfully. User has been logged out.',
+            'data' => [
+                'user_id' => $userId,
+                'email' => $credential->email,
+                'username' => $credential->username,
+                'phone_number' => $credential->phone_number,
+            ],
+        ]);
+    }
+
+    public function forcePasswordReset(string $userId): JsonResponse
+    {
+        $this->userService->forcePasswordReset($userId);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Password reset email sent to user.',
+        ]);
+    }
+
     public function softDeleteUser(string $userId): JsonResponse
     {
         $this->userService->softDeleteUser($userId);
@@ -162,11 +176,6 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Hard delete user permanently (admin only)
-     *
-     * @throws UserNotFoundException
-     */
     public function hardDeleteUser(string $userId): JsonResponse
     {
         $this->userService->hardDeleteUser($userId);
@@ -177,11 +186,6 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Restore soft deleted user (admin only)
-     *
-     * @throws UserNotFoundException
-     */
     public function restoreUser(string $userId): JsonResponse
     {
         $user = $this->userService->restoreUser($userId);
@@ -196,9 +200,6 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Update user information (admin only)
-     */
     public function updateUserInformation(UpdateUserInformationRequest $request, string $userId): JsonResponse
     {
         $userData = $request->only([
@@ -231,16 +232,12 @@ class UserController extends Controller
             ]);
         }
 
-        try {
-            $user = $this->userService->updateUserInformation(
-                $userId,
-                $userData,
-                $personalInfoData,
-                $emergencyContactData
-            );
-        } catch (UserNotFoundException|Throwable) {
-
-        }
+        $user = $this->userService->updateUserInformation(
+            $userId,
+            $userData,
+            $personalInfoData,
+            $emergencyContactData
+        );
 
         return response()->json([
             'success' => true,

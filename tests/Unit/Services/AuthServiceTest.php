@@ -6,6 +6,8 @@ use App\Exceptions\AccountSuspendedException;
 use App\Exceptions\InvalidCredentialsException;
 use App\Exceptions\InvalidOtpException;
 use App\Exceptions\OtpExpiredException;
+use App\Exceptions\OtpRateLimitException;
+use App\Mail\OtpMail;
 use App\Models\Credential;
 use App\Services\AuthService;
 use App\Services\JwtService;
@@ -97,7 +99,7 @@ class AuthServiceTest extends TestCase
 
         $this->authService->initiateLogin($user->credential->email, 'Test@12345');
 
-        Mail::assertSent(\App\Mail\OtpMail::class);
+        Mail::assertSent(OtpMail::class);
     }
 
     /** @test */
@@ -236,7 +238,7 @@ class AuthServiceTest extends TestCase
     /** @test */
     public function it_enforces_rate_limiting_during_login()
     {
-        $this->expectException(\App\Exceptions\OtpRateLimitException::class);
+        $this->expectException(OtpRateLimitException::class);
 
         Mail::fake();
 

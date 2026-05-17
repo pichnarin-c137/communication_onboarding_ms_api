@@ -1,0 +1,41 @@
+meta {
+  name: Verify OTP
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/auth/verify-otp
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "identifier": "admin@dev.com",
+    "otp": "111111",
+    "remember_me": false,
+    "timezone": "Asia/Phnom_Penh"
+  }
+}
+
+docs {
+  Step 2 of login. Verifies OTP and issues access + refresh tokens.
+  The refresh_token is returned as an HttpOnly cookie (path: /api/v1/auth).
+  Copy the access_token from the response into the {{access_token}} environment variable.
+  
+  Response:
+  {
+    "success": true,
+    "message": "Login successful",
+    "data": {
+      "access_token": "eyJ...",
+      "token_type": "Bearer",
+      "expires_in": 900
+    }
+  }
+}

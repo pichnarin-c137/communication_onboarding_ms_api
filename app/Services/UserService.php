@@ -5,12 +5,15 @@ namespace App\Services;
 use App\Exceptions\MailDeliveryException;
 use App\Exceptions\RoleNotFoundException;
 use App\Exceptions\UserNotFoundException;
+use App\Mail\ForgotPasswordMail;
 use App\Models\Client;
 use App\Models\Credential;
 use App\Models\EmergencyContact;
 use App\Models\PersonalInformation;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Logging\ActivityLogger;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -18,6 +21,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 use Random\RandomException;
@@ -28,7 +32,9 @@ class UserService
     private array $uploadedFiles = [];
 
     public function __construct(
-        private readonly OtpService $otpService
+        private readonly OtpService $otpService,
+        private readonly ActivityLogger $activityLogger,
+        private readonly JwtService $jwtService,
     ) {}
 
     /**
@@ -57,12 +63,12 @@ class UserService
                 // Create user
                 $user = User::create([
                     'role_id' => $role->id,
-                    'first_name' => $userData['first_name'],
-                    'last_name' => $userData['last_name'],
-                    'dob' => $userData['dob'],
-                    'address' => $userData['address'],
-                    'gender' => $userData['gender'],
-                    'nationality' => $userData['nationality'],
+                    'first_name' => $userData['first_name'] ?? null,
+                    'last_name' => $userData['last_name'] ?? null,
+                    'dob' => $userData['dob'] ?? null,
+                    'address' => $userData['address'] ?? null,
+                    'gender' => $userData['gender'] ?? null,
+                    'nationality' => $userData['nationality'] ?? null,
                 ]);
 
                 // Create credentials
@@ -89,6 +95,12 @@ class UserService
 
             // Transaction succeeded, clear the tracker
             $this->uploadedFiles = [];
+
+            $this->activityLogger->log(
+                ActivityLogger::USER_CREATED,
+                'User created',
+                ['created_user_id' => $user->id, 'role' => $userData['role'] ?? 'user'],
+            );
 
             // Send OTP AFTER transaction commits
             // This prevents email failures from rolling back user creation
@@ -230,12 +242,10 @@ class UserService
 
     public function listUsers(array $filters = []): array
     {
-        $query = User::with(['role', 'credential', 'personalInformation', 'emergencyContact']);
+        $query = User::withTrashed()
+            ->with(['role', 'credential', 'personalInformation', 'emergencyContact'])
+            ->whereHas('credential');
 
-        // Only include users that have credentials (incomplete users without credentials are invalid)
-        $query->whereHas('credential');
-
-        // Apply filters
         if (! empty($filters['role'])) {
             $query->whereHas('role', function ($q) use ($filters) {
                 $q->where('role', $filters['role']);
@@ -246,7 +256,7 @@ class UserService
             $query->where('gender', $filters['gender']);
         }
 
-        if (! empty($filters['is_suspended'])) {
+        if (isset($filters['is_suspended']) && $filters['is_suspended'] !== '') {
             $query->where('is_suspended', filter_var($filters['is_suspended'], FILTER_VALIDATE_BOOLEAN));
         }
 
@@ -266,11 +276,10 @@ class UserService
             });
         }
 
-        // Include or exclude soft deleted users
-        if (! empty($filters['with_trashed']) && $filters['with_trashed'] === 'true') {
-            $query->withTrashed();
-        } elseif (! empty($filters['only_trashed']) && $filters['only_trashed'] === 'true') {
+        if (! empty($filters['only_trashed']) && $filters['only_trashed'] === 'true') {
             $query->onlyTrashed();
+        } elseif (isset($filters['only_active']) && $filters['only_active'] === 'true') {
+            $query->whereNull('deleted_at');
         }
 
         // Sorting
@@ -291,11 +300,13 @@ class UserService
                     'first_name' => $user->first_name,
                     'last_name' => $user->last_name,
                     'full_name' => $user->full_name,
-                    'dob' => $user->dob->format('Y-m-d'),
+                    'dob' => $user->dob?->format('Y-m-d'),
                     'address' => $user->address,
                     'gender' => $user->gender,
                     'nationality' => $user->nationality,
                     'is_suspended' => $user->is_suspended,
+                    'is_deleted' => ! is_null($user->deleted_at),
+                    'status' => ! is_null($user->deleted_at) ? 'deleted' : ($user->is_suspended ? 'suspended' : 'active'),
                     'role' => $user->role->role,
                     'email' => $user->credential->email,
                     'username' => $user->credential->username,
@@ -410,7 +421,7 @@ class UserService
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
             'full_name' => $user->full_name,
-            'dob' => $user->dob->format('Y-m-d'),
+            'dob' => $user->dob?->format('Y-m-d'),
             'address' => $user->address,
             'gender' => $user->gender,
             'nationality' => $user->nationality,
@@ -469,7 +480,86 @@ class UserService
 
         $user->update(['is_suspended' => ! $user->is_suspended]);
 
+        $this->activityLogger->log(
+            $user->is_suspended ? ActivityLogger::USER_SUSPENDED : ActivityLogger::USER_UNSUSPENDED,
+            $user->is_suspended ? 'User suspended' : 'User unsuspended',
+            ['target_user_id' => $userId],
+        );
+
         return $user;
+    }
+
+    /**
+     * @throws UserNotFoundException
+     */
+    public function updateCredentials(string $userId, array $data): Credential
+    {
+        $user = User::withTrashed()->find($userId);
+
+        if (! $user) {
+            throw new UserNotFoundException('User not found', 0, null, ['user_id' => $userId]);
+        }
+
+        $credential = $user->credential;
+
+        if (! $credential) {
+            throw new UserNotFoundException('User credential not found', 0, null, ['user_id' => $userId]);
+        }
+
+        $credential->update(array_filter($data, fn ($v) => $v !== null));
+
+        $this->jwtService->revokeAllUserTokens($userId);
+
+        $this->activityLogger->log(
+            ActivityLogger::USER_UPDATED,
+            'User credentials updated',
+            ['target_user_id' => $userId],
+        );
+
+        return $credential->fresh();
+    }
+
+    /**
+     * @throws UserNotFoundException
+     */
+    public function forcePasswordReset(string $userId): void
+    {
+        $user = User::withTrashed()->find($userId);
+
+        if (! $user) {
+            throw new UserNotFoundException('User not found', 0, null, ['user_id' => $userId]);
+        }
+
+        $credential = $user->credential;
+
+        if (! $credential) {
+            throw new UserNotFoundException('User credential not found', 0, null, ['user_id' => $userId]);
+        }
+
+        $rawToken = bin2hex(random_bytes(32));
+        $ttlMinutes = (int) config('coms.password_reset_ttl_minutes', 60);
+        $resetLink = url('/reset-password').'?token='.$rawToken.'&email='.urlencode($credential->email);
+
+        $credential->update([
+            'reset_token' => hash('sha256', $rawToken),
+            'reset_token_expires_at' => Carbon::now()->addMinutes($ttlMinutes),
+        ]);
+
+        $this->activityLogger->log(
+            ActivityLogger::PASSWORD_RESET,
+            'Admin forced password reset',
+            ['target_user_id' => $userId],
+            $userId,
+        );
+
+        try {
+            Mail::to($credential->email)->queue(new ForgotPasswordMail($resetLink, $ttlMinutes));
+        } catch (Throwable $e) {
+            Log::error('Failed to queue force password reset email', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -483,7 +573,15 @@ class UserService
             throw new UserNotFoundException('User not found', 0, null, ['user_id' => $userId]);
         }
 
-        return $user->delete();
+        $result = $user->delete();
+
+        $this->activityLogger->log(
+            ActivityLogger::USER_SOFT_DELETED,
+            'User soft deleted',
+            ['deleted_user_id' => $userId],
+        );
+
+        return $result;
     }
 
     /**
@@ -502,7 +600,15 @@ class UserService
             $this->deletePersonalInformationFiles($user->personalInformation);
         }
 
-        return $user->forceDelete();
+        $result = $user->forceDelete();
+
+        $this->activityLogger->log(
+            ActivityLogger::USER_HARD_DELETED,
+            'User hard deleted',
+            ['deleted_user_id' => $userId],
+        );
+
+        return $result;
     }
 
     /**
@@ -522,6 +628,12 @@ class UserService
 
         $user->restore();
 
+        $this->activityLogger->log(
+            ActivityLogger::USER_RESTORED,
+            'User restored',
+            ['restored_user_id' => $userId],
+        );
+
         return $user->load(['role', 'credential']);
     }
 
@@ -534,7 +646,7 @@ class UserService
         $this->uploadedFiles = [];
 
         try {
-            return DB::transaction(function () use ($userId, $userData, $personalInfoData, $emergencyContactData) {
+            $user = DB::transaction(function () use ($userId, $userData, $personalInfoData, $emergencyContactData) {
                 $user = User::find($userId);
 
                 if (! $user) {
@@ -559,8 +671,15 @@ class UserService
                 return $user->fresh(['role', 'credential', 'personalInformation', 'emergencyContact']);
             });
 
-            // Clear tracker on success
             $this->uploadedFiles = [];
+
+            $this->activityLogger->log(
+                ActivityLogger::USER_UPDATED,
+                'User information updated',
+                ['updated_user_id' => $userId],
+            );
+
+            return $user;
         } catch (Throwable $e) {
             // Clean up uploaded files on failure
             $this->cleanupUploadedFiles();

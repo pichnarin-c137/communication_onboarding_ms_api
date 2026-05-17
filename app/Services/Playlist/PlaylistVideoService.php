@@ -7,6 +7,7 @@ use App\Exceptions\Business\InvalidYouTubeLinkException;
 use App\Exceptions\Business\PlaylistVideoNotFoundException;
 use App\Models\Playlist;
 use App\Models\PlaylistVideo;
+use App\Services\Logging\ActivityLogger;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,9 @@ use Throwable;
 
 class PlaylistVideoService
 {
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+    ) {}
     //
     // Read operations (cached)
     //
@@ -71,6 +75,12 @@ class PlaylistVideoService
 
         $this->invalidateCaches($playlist);
 
+        $this->activityLogger->log(
+            ActivityLogger::PLAYLIST_VIDEO_ADDED,
+            "Video added to playlist",
+            ['playlist_id' => $playlist->id, 'video_id' => $video->id],
+        );
+
         return $video->load(['creator']);
     }
 
@@ -103,15 +113,29 @@ class PlaylistVideoService
         $video->update($updateData);
         $this->invalidateCaches($playlist);
 
+        $this->activityLogger->log(
+            ActivityLogger::PLAYLIST_VIDEO_UPDATED,
+            "Playlist video updated",
+            ['playlist_id' => $playlist->id, 'video_id' => $video->id],
+        );
+
         return $video->fresh(['creator']);
     }
 
     public function delete(Playlist $playlist, PlaylistVideo $video, string $userId): void
     {
+        $videoId = $video->id;
+
         $video->update(['deleted_by' => $userId]);
         $video->delete();
 
         $this->invalidateCaches($playlist);
+
+        $this->activityLogger->log(
+            ActivityLogger::PLAYLIST_VIDEO_DELETED,
+            "Playlist video deleted",
+            ['playlist_id' => $playlist->id, 'video_id' => $videoId],
+        );
     }
 
     /**

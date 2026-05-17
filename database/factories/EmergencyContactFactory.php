@@ -2,10 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Models\EmergencyContact;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\EmergencyContact>
+ * @extends Factory<EmergencyContact>
  */
 class EmergencyContactFactory extends Factory
 {
@@ -17,7 +19,7 @@ class EmergencyContactFactory extends Factory
     public function definition(): array
     {
         return [
-            'user_id' => \App\Models\User::factory(),
+            'user_id' => User::factory(),
             'contact_first_name' => fake()->firstName(),
             'contact_last_name' => fake()->lastName(),
             'contact_relationship' => fake()->randomElement(['Spouse', 'Parent', 'Sibling', 'Friend', 'Relative']),

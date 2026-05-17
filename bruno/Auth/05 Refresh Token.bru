@@ -1,0 +1,28 @@
+meta {
+  name: Refresh Token
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/auth/refresh-token
+  body: none
+  auth: none
+}
+
+docs {
+  Issues a new access_token using the refresh_token HttpOnly cookie.
+  The cookie must be present (set automatically by the browser after Verify OTP).
+  No request body or Authorization header needed.
+
+  Response:
+  {
+    "success": true,
+    "message": "Token refreshed successfully",
+    "data": {
+      "access_token": "eyJ...",
+      "token_type": "Bearer",
+      "expires_in": 900
+    }
+  }
+}

@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use App\Models\Role;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Tests\Helpers\CreatesUsers;
@@ -44,7 +45,7 @@ abstract class TestCase extends BaseTestCase
      */
     protected function seedRoles(): void
     {
-        \App\Models\Role::firstOrCreate(['role' => 'admin']);
-        \App\Models\Role::firstOrCreate(['role' => 'user']);
+        Role::firstOrCreate(['role' => 'admin']);
+        Role::firstOrCreate(['role' => 'user']);
     }
 }

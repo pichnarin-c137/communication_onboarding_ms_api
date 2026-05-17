@@ -15,6 +15,7 @@ use App\Models\OnboardingTrainerAssignment;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Onboarding\OnboardingSlaService;
+use App\Services\Onboarding\OnboardingTriggerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -760,7 +761,7 @@ class OnboardingExpansionTest extends TestCase
             'is_continued_session' => true,
         ]);
 
-        $triggerService = app(\App\Services\Onboarding\OnboardingTriggerService::class);
+        $triggerService = app(OnboardingTriggerService::class);
 
         // Incoming link should be created while appointment is pending
         $triggerService->handleAppointmentInProgress($appointment2);
@@ -843,7 +844,7 @@ class OnboardingExpansionTest extends TestCase
             'is_continued_session' => false,
         ]);
 
-        $triggerService = app(\App\Services\Onboarding\OnboardingTriggerService::class);
+        $triggerService = app(OnboardingTriggerService::class);
         $triggerService->handleAppointmentCompleted($appointment2);
 
         // Should create a new OnboardingRequest with cycle_number = 2

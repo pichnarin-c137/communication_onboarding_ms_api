@@ -15,17 +15,20 @@ use App\Mail\ForgotPasswordMail;
 use App\Models\Credential;
 use App\Models\User;
 use App\Models\UserSetting;
+use App\Services\Logging\ActivityLogger;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Random\RandomException;
+use Throwable;
 
 class AuthService
 {
     public function __construct(
         private JwtService $jwtService,
-        private OtpService $otpService
+        private OtpService $otpService,
+        private readonly ActivityLogger $activityLogger,
     ) {}
 
     /**
@@ -46,16 +49,33 @@ class AuthService
             ->first();
 
         if (! $credential) {
+            $this->activityLogger->log(
+                ActivityLogger::LOGIN_FAILED,
+                'Login failed — account not found',
+                ['identifier' => $identifier],
+            );
             throw new InvalidCredentialsException('Invalid username or password');
         }
 
         // Verify password
         if (! Hash::check($password, $credential->password)) {
+            $this->activityLogger->log(
+                ActivityLogger::LOGIN_FAILED,
+                'Login failed — wrong password',
+                ['identifier' => $identifier],
+                $credential->user_id,
+            );
             throw new InvalidCredentialsException('Invalid username or password');
         }
 
         // Check if user is suspended
         if ($credential->user->isSuspended()) {
+            $this->activityLogger->log(
+                ActivityLogger::LOGIN_FAILED,
+                'Login failed — account suspended',
+                ['identifier' => $identifier],
+                $credential->user_id,
+            );
             throw new AccountSuspendedException('Your account has been suspended');
         }
 
@@ -108,7 +128,16 @@ class AuthService
         $user = $credential->user;
         $resolvedRememberMe = $rememberme ?? (bool) $credential->remember_me;
 
-        return $this->issueTokens($user, $resolvedRememberMe, $timezone);
+        $tokens = $this->issueTokens($user, $resolvedRememberMe, $timezone);
+
+        $this->activityLogger->log(
+            ActivityLogger::LOGIN,
+            'User logged in successfully',
+            ['role' => $user->role->role],
+            $user->id,
+        );
+
+        return $tokens;
     }
 
     /**
@@ -164,6 +193,13 @@ class AuthService
             return;
         }
 
+        $this->activityLogger->log(
+            ActivityLogger::FORGOT_PASSWORD,
+            'Password reset requested',
+            ['email' => $email],
+            $credential->user_id,
+        );
+
         $rawToken = bin2hex(random_bytes(32));
         $ttlMinutes = (int) config('coms.password_reset_ttl_minutes', 60);
         $resetLink = url('/reset-password').'?token='.$rawToken.'&email='.urlencode($email);
@@ -175,7 +211,7 @@ class AuthService
 
         try {
             Mail::to($email)->queue(new ForgotPasswordMail($resetLink, $ttlMinutes));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('Failed to queue password reset email', ['email' => $email, 'error' => $e->getMessage()]);
         }
     }
@@ -205,6 +241,13 @@ class AuthService
             'reset_token' => null,
             'reset_token_expires_at' => null,
         ]);
+
+        $this->activityLogger->log(
+            ActivityLogger::PASSWORD_RESET,
+            'Password reset completed',
+            ['email' => $email],
+            $credential->user_id,
+        );
     }
 
     // Change password (authenticated — user is logged in)
@@ -223,6 +266,13 @@ class AuthService
         $credential->update(['password' => $newPassword]);
 
         $this->jwtService->revokeAllUserTokens($userId);
+
+        $this->activityLogger->log(
+            ActivityLogger::PASSWORD_CHANGED,
+            'Password changed',
+            [],
+            $userId,
+        );
     }
 
     /**
@@ -231,6 +281,11 @@ class AuthService
     public function logout(string $refreshToken): void
     {
         $this->jwtService->revokeRefreshToken($refreshToken);
+
+        $this->activityLogger->log(
+            ActivityLogger::LOGOUT,
+            'User logged out',
+        );
     }
 
     /**

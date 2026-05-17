@@ -6,6 +6,7 @@ use App\Events\TrainerStatusChanged;
 use App\Exceptions\Business\InvalidTrainerStatusTransitionException;
 use App\Models\Client;
 use App\Models\TrainerActivityLog;
+use App\Services\Logging\ActivityLogger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
@@ -23,6 +24,7 @@ class TrainerStatusService
 
     public function __construct(
         private readonly TrainerTrackingService $trackingService,
+        private readonly ActivityLogger $activityLogger,
     ) {}
 
     /**
@@ -125,6 +127,13 @@ class TrainerStatusService
                 'error' => $e->getMessage(),
             ]);
         }
+
+        $this->activityLogger->log(
+            ActivityLogger::TRAINER_STATUS_CHANGED,
+            "Trainer status changed to '$newStatus'",
+            ['trainer_id' => $trainerId, 'new_status' => $newStatus],
+            $trainerId,
+        );
 
         return $log;
     }

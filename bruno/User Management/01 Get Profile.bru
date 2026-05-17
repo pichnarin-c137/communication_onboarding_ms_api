@@ -1,0 +1,37 @@
+meta {
+  name: Get Profile
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/get-profile
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+docs {
+  Returns the authenticated user's full profile.
+  Available to all roles (admin, sale, trainer).
+
+  Response:
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "first_name": "John",
+      "last_name": "Doe",
+      "role": "admin",
+      "email": "admin@example.com",
+      "username": "admin",
+      "phone_number": "+85512345678",
+      "is_suspended": false,
+      "personal_information": { ... },
+      "emergency_contact": { ... }
+    }
+  }
+}

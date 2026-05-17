@@ -4,6 +4,7 @@ namespace App\Services\Onboarding;
 
 use App\Exceptions\Business\LessonLockedAfterSendException;
 use App\Models\OnboardingLesson;
+use App\Services\Logging\ActivityLogger;
 use App\Services\Telegram\TelegramGroupService;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -12,6 +13,7 @@ readonly class LessonSendService
 {
     public function __construct(
         private TelegramGroupService $telegramGroupService,
+        private ActivityLogger $activityLogger,
     ) {}
 
     /**
@@ -31,6 +33,13 @@ readonly class LessonSendService
             'sent_by_user_id' => $userId,
             'telegram_message_id' => null,
         ]);
+
+        $this->activityLogger->log(
+            ActivityLogger::LESSON_SENT,
+            "Lesson path $lesson->path sent",
+            ['lesson_id' => $lesson->id, 'onboarding_id' => $lesson->onboarding_id],
+            $userId,
+        );
 
         // Telegram hook: notify client group that a lesson has been sent
         try {

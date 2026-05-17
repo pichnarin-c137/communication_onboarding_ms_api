@@ -183,9 +183,9 @@ readonly class AppointmentService
             ]));
 
             $this->activityLogger->log(
-                'appointment_created',
+                ActivityLogger::APPOINTMENT_CREATED,
                 "Appointment '$appointment->title' created",
-                ['appointment_id' => $appointment->id]
+                ['appointment_id' => $appointment->id, 'type' => $appointment->appointment_type]
             );
 
             return $appointment;
@@ -242,6 +242,12 @@ readonly class AppointmentService
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $oldTrainerId, $data['trainer_id'] ?? null);
 
+        $this->activityLogger->log(
+            ActivityLogger::APPOINTMENT_UPDATED,
+            "Appointment '$appt->appointment_code' updated",
+            ['appointment_id' => $appt->id],
+        );
+
         return $appt->fresh();
     }
 
@@ -266,6 +272,12 @@ readonly class AppointmentService
         $this->onboardingTriggerService->handleAppointmentInProgress($appt);
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
+
+        $this->activityLogger->log(
+            ActivityLogger::APPOINTMENT_LEAVE_OFFICE,
+            "Trainer left office for appointment '$appt->appointment_code'",
+            ['appointment_id' => $appt->id],
+        );
 
         // Sync tracking: trainer is now en_route to the client
         $this->syncTrackingStatus($appt->trainer_id, 'en_route', [
@@ -325,6 +337,12 @@ readonly class AppointmentService
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
 
+        $this->activityLogger->log(
+            ActivityLogger::APPOINTMENT_STARTED,
+            "Appointment '$appt->appointment_code' started",
+            ['appointment_id' => $appt->id],
+        );
+
         // Sync tracking: trainer started session (skip 'arrived' — it's immediately overwritten)
         $this->syncTrackingStatus($appt->trainer_id, 'in_session', [
             'customer_id' => $appt->client_id,
@@ -374,6 +392,12 @@ readonly class AppointmentService
         ]);
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
+
+        $this->activityLogger->log(
+            ActivityLogger::APPOINTMENT_COMPLETED,
+            "Appointment '$appt->appointment_code' completed",
+            ['appointment_id' => $appt->id],
+        );
 
         // Sync tracking: trainer completed session
         $trainerId = $appt->trainer_id ?? $completingUserId;
@@ -430,6 +454,12 @@ readonly class AppointmentService
         $wasActive = in_array($appt->getOriginal('status'), ['leave_office', 'in_progress']);
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
+
+        $this->activityLogger->log(
+            ActivityLogger::APPOINTMENT_CANCELLED,
+            "Appointment '$appt->appointment_code' cancelled",
+            ['appointment_id' => $appt->id, 'reason' => $reason],
+        );
 
         // If the appointment was active, reset the trainer's tracking state
         if ($wasActive) {
@@ -506,6 +536,12 @@ readonly class AppointmentService
         });
 
         $this->invalidateAppointment($appt->id, $appt->creator_id, $appt->trainer_id);
+
+        $this->activityLogger->log(
+            ActivityLogger::APPOINTMENT_RESCHEDULED,
+            "Appointment '$appt->appointment_code' rescheduled",
+            ['appointment_id' => $newAppt->id],
+        );
 
         $this->onboardingTriggerService->handleAppointmentInProgress($newAppt);
 
@@ -770,12 +806,12 @@ readonly class AppointmentService
             $clientName = $appointment->client?->company_name ?? 'Client';
             $date = $appointment->scheduled_date->format('d M Y');
             $time = $appointment->scheduled_start_time;
-            $trainerName = $appointment->trainer?->name ?? 'Trainer';
+            $trainerName = $appointment->trainer?->full_name ?? 'Trainer';
 
             $variables = match ($messageType) {
                 'training_scheduled', 'training_on_the_way' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'trainer_name' => $trainerName],
                 'training_completed' => ['client_name' => $clientName, 'date' => $date],
-                'training_started' => ['client_name' => $clientName, 'date' => $date, 'time' => $time],
+                'training_started' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'trainer_name' => $trainerName],
                 'training_rescheduled' => ['client_name' => $clientName, 'date' => $date, 'time' => $time, 'reason' => $appointment->reschedule_reason ?? 'No reason provided'],
                 'training_cancelled' => ['client_name' => $clientName, 'date' => $date, 'reason' => $appointment->cancellation_reason ?? 'No reason provided'],
                 default => [],

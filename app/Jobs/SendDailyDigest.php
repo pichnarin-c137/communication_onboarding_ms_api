@@ -12,6 +12,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class SendDailyDigest implements ShouldQueue
 {
@@ -61,7 +62,7 @@ class SendDailyDigest implements ShouldQueue
         );
     }
 
-    public function failed(\Throwable $e): void
+    public function failed(Throwable $e): void
     {
         Log::error('SendDailyDigest: failed after all retries.', [
             'user_id' => $this->userId,

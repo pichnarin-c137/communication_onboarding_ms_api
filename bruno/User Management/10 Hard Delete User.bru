@@ -1,0 +1,27 @@
+meta {
+  name: Hard Delete User
+  type: http
+  seq: 10
+}
+
+delete {
+  url: {{base_url}}/hard-delete-user/{{user_id}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+docs {
+  Admin only. Permanently deletes a user and all cascaded records. IRREVERSIBLE.
+  Credentials, personal information, and emergency contact are cascade-deleted.
+  Confirm before use — there is no undo.
+
+  Response:
+  {
+    "success": true,
+    "message": "User permanently deleted"
+  }
+}

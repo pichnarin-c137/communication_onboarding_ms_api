@@ -1,0 +1,38 @@
+meta {
+  name: Login
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "identifier": "admin@dev.com",
+    "password": "Admin@123456",
+    "remember_me": false
+  }
+}
+
+docs {
+  Step 1 of 2-factor login. Sends OTP to the user's email.
+  Accepts email or username as identifier.
+  
+  Response:
+  {
+    "success": true,
+    "message": "OTP sent to your email",
+    "data": {
+      "email": "admin@example.com",
+      "next_step": "verify_otp"
+    }
+  }
+}

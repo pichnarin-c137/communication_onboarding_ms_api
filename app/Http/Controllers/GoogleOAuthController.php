@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\GoogleOAuthService;
+use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,7 +44,7 @@ class GoogleOAuthController extends Controller
             $this->googleOAuthService->handleCallback($userId);
 
             return redirect()->to($frontendUrl.'?google=connected');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Google OAuth callback failed', [
                 'error' => $e->getMessage(),
                 'user_id' => $userId,

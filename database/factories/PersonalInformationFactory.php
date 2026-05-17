@@ -2,10 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Models\PersonalInformation;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\PersonalInformation>
+ * @extends Factory<PersonalInformation>
  */
 class PersonalInformationFactory extends Factory
 {
@@ -17,7 +19,7 @@ class PersonalInformationFactory extends Factory
     public function definition(): array
     {
         return [
-            'user_id' => \App\Models\User::factory(),
+            'user_id' => User::factory(),
             'professtional_photo' => 'documents/professtional_photos/'.fake()->uuid().'.jpg',
             'nationality_card' => 'documents/nationality_cards/'.fake()->uuid().'.pdf',
             'family_book' => 'documents/family_books/'.fake()->uuid().'.pdf',

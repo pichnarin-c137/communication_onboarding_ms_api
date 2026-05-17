@@ -6,6 +6,7 @@ use App\Mail\OnboardingFeedbackMailable;
 use App\Models\OnboardingClientFeedback;
 use App\Models\OnboardingFeedbackToken;
 use App\Models\OnboardingRequest;
+use App\Services\Telegram\TelegramGroupService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -16,12 +17,17 @@ use Throwable;
 
 class OnboardingFeedbackService
 {
+    public function __construct(
+        private readonly TelegramGroupService $telegramGroupService,
+    ) {}
+
     /**
      * @throws RandomException
      */
     public function requestFeedback(OnboardingRequest $onboarding): void
     {
-        $clientEmail = $onboarding->client?->email;
+        $client = $onboarding->client;
+        $clientEmail = $client?->email;
 
         if (! $clientEmail) {
             throw ValidationException::withMessages([
@@ -34,7 +40,7 @@ class OnboardingFeedbackService
             ->whereNull('used_at')
             ->delete();
 
-        // Generate token: store SHA-256 hash in DB, send raw token in email
+        // Generate token: store SHA-256 hash in DB, send raw token in email/Telegram
         $rawToken = bin2hex(random_bytes(32));
         $hashedToken = hash('sha256', $rawToken);
 
@@ -53,6 +59,21 @@ class OnboardingFeedbackService
             );
         } catch (Throwable $e) {
             Log::error('OnboardingFeedbackService: failed to queue feedback email', [
+                'onboarding_id' => $onboarding->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        try {
+            $feedbackUrl = url("/api/v1/feedback/$rawToken");
+            $this->telegramGroupService->notifyClient($client->id, 'onboarding_feedback_link', [
+                'client_name' => $client->company_name,
+                'request_code' => $onboarding->request_code,
+                'feedback_url' => $feedbackUrl,
+                'expiry_days' => $ttlDays,
+            ]);
+        } catch (Throwable $e) {
+            Log::error('OnboardingFeedbackService: failed to send feedback Telegram notification', [
                 'onboarding_id' => $onboarding->id,
                 'error' => $e->getMessage(),
             ]);
@@ -89,6 +110,14 @@ class OnboardingFeedbackService
         }
 
         $feedback = DB::transaction(function () use ($tokenRecord, $rating, $comment) {
+            // Guard against manual submission that happened after the token was issued
+            if (OnboardingClientFeedback::where('onboarding_id', $tokenRecord->onboarding_id)->exists()) {
+                $tokenRecord->update(['used_at' => now()]);
+                throw ValidationException::withMessages([
+                    'token' => ['This feedback link has already been used.'],
+                ]);
+            }
+
             $feedback = OnboardingClientFeedback::create([
                 'onboarding_id' => $tokenRecord->onboarding_id,
                 'rating' => $rating,

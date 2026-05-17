@@ -13,6 +13,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class SendWeeklyTrainerReport implements ShouldQueue
 {
@@ -72,7 +73,7 @@ class SendWeeklyTrainerReport implements ShouldQueue
         );
     }
 
-    public function failed(\Throwable $e): void
+    public function failed(Throwable $e): void
     {
         Log::error('SendWeeklyTrainerReport: failed after all retries.', [
             'admin_id' => $this->adminId,

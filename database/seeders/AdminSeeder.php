@@ -14,7 +14,7 @@ class AdminSeeder extends Seeder
     {
         // Check if admin already exists
         $existingAdmin = Credential::where('username', 'admin')
-            ->orWhere('email', 'pichnarin893@gmail.com')
+            ->orWhere('email', 'admin@dev.com')
             ->first();
 
         if ($existingAdmin) {
@@ -37,7 +37,7 @@ class AdminSeeder extends Seeder
 
         Credential::create([
             'user_id' => $admin->id,
-            'email' => 'admin.demo@checkinme.com',
+            'email' => 'admin@dev.com',
             'username' => 'admin',
             'phone_number' => '+1234567890',
             'password' => Hash::make('Admin@123456'),

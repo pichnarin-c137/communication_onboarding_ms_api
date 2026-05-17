@@ -4,6 +4,7 @@ namespace Tests\Unit\Services;
 
 use App\Exceptions\RoleNotFoundException;
 use App\Exceptions\UserNotFoundException;
+use App\Mail\OtpMail;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\UserService;
@@ -130,7 +131,7 @@ class UserServiceTest extends TestCase
 
         $user = $this->userService->createUser($userData, $credentialData);
 
-        Mail::assertSent(\App\Mail\OtpMail::class, function ($mail) use ($user) {
+        Mail::assertSent(OtpMail::class, function ($mail) use ($user) {
             return $mail->hasTo($user->credential->email);
         });
 

@@ -3,6 +3,7 @@
 namespace App\Exceptions\Business;
 
 use App\Exceptions\BaseException;
+use Throwable;
 
 class TelegramSendFailedException extends BaseException
 {
@@ -13,7 +14,7 @@ class TelegramSendFailedException extends BaseException
     public function __construct(
         string $message = 'Failed to send message to Telegram.',
         int $code = 0,
-        ?\Throwable $previous = null,
+        ?Throwable $previous = null,
         array $context = []
     ) {
         parent::__construct($message, $code, $previous, $context);

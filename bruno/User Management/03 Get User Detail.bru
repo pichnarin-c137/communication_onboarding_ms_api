@@ -1,0 +1,36 @@
+meta {
+  name: Get User Detail
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/user-detail/{{user_id}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+docs {
+  Admin only. Returns full profile for any user by UUID.
+  Set {{user_id}} in the environment or replace inline.
+
+  Response:
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "first_name": "John",
+      "last_name": "Doe",
+      "role": "trainer",
+      "email": "trainer@example.com",
+      "is_suspended": false,
+      "deleted_at": null,
+      "personal_information": { ... },
+      "emergency_contact": { ... }
+    }
+  }
+}

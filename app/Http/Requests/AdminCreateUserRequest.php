@@ -16,17 +16,19 @@ class AdminCreateUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // User data
-            'first_name' => ['required', 'string', 'max:100', 'regex:/^[a-zA-Z\s]+$/'],
-            'last_name' => ['required', 'string', 'max:100', 'regex:/^[a-zA-Z\s]+$/'],
-            'dob' => ['required', 'date', 'before:today', 'after:1900-01-01'],
-            'address' => ['required', 'string', 'max:500'],
-            'gender' => ['required', 'in:male,female,other'],
-            'nationality' => ['required', 'string', 'max:100'],
+            // Optional User data
+            'first_name' => ['nullable', 'string', 'max:100', 'regex:/^[a-zA-Z\s]+$/'],
+            'last_name' => ['nullable', 'string', 'max:100', 'regex:/^[a-zA-Z\s]+$/'],
+            'dob' => ['nullable', 'date', 'before:today', 'after:1900-01-01'],
+            'address' => ['nullable', 'string', 'max:500'],
+            'gender' => ['nullable', 'in:male,female,other'],
+            'nationality' => ['nullable', 'string', 'max:100'],
+
+            // Required
             'role' => ['required', 'string', 'in:admin,sale,trainer'],
 
-            // Personal Information (images)
-            'professtional_photo' => ['nullable', 'file', 'mimes:jpeg,jpg,png', 'max:5120'], // 5MB max
+            // Personal Information
+            'professtional_photo' => ['nullable', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
             'nationality_card' => ['nullable', 'file', 'mimes:jpeg,jpg,png,pdf', 'max:5120'],
             'family_book' => ['nullable', 'file', 'mimes:jpeg,jpg,png,pdf', 'max:5120'],
             'birth_certificate' => ['nullable', 'file', 'mimes:jpeg,jpg,png,pdf', 'max:5120'],
@@ -34,17 +36,29 @@ class AdminCreateUserRequest extends FormRequest
             'social_media' => ['nullable', 'url', 'max:255'],
 
             // Emergency Contact
-            'contact_first_name' => ['required', 'string', 'max:100', 'regex:/^[a-zA-Z\s]+$/'],
-            'contact_last_name' => ['required', 'string', 'max:100', 'regex:/^[a-zA-Z\s]+$/'],
-            'contact_relationship' => ['required', 'string', 'in:Spouse,Parent,Sibling,Friend,Relative,Other'],
-            'contact_phone_number' => ['required', 'string', 'regex:/^\+?[1-9]\d{1,14}$/'],
-            'contact_address' => ['required', 'string', 'max:500'],
+            'contact_first_name' => ['nullable', 'string', 'max:100', 'regex:/^[a-zA-Z\s]+$/'],
+            'contact_last_name' => ['nullable', 'string', 'max:100', 'regex:/^[a-zA-Z\s]+$/'],
+            'contact_relationship' => ['nullable', 'in:Spouse,Parent,Sibling,Friend,Relative,Other'],
+            'contact_phone_number' => ['nullable', 'regex:/^\+?[1-9]\d{1,14}$/'],
+            'contact_address' => ['nullable', 'string', 'max:500'],
             'contact_social_media' => ['nullable', 'url', 'max:255'],
 
-            // Credential data
+            // Required Credential data
             'email' => ['required', 'email', 'max:255', 'unique:credentials,email'],
-            'username' => ['required', 'string', 'min:3', 'max:50', 'regex:/^[a-zA-Z0-9_]+$/', 'unique:credentials,username'],
-            'phone_number' => ['required', 'string', 'regex:/^\+?[1-9]\d{1,14}$/', 'unique:credentials,phone_number'],
+            'username' => [
+                'required',
+                'string',
+                'min:3',
+                'max:50',
+                'regex:/^[a-zA-Z0-9_]+$/',
+                'unique:credentials,username',
+            ],
+            'phone_number' => [
+                'required',
+                'string',
+                'regex:/^\+?[1-9]\d{1,14}$/',
+                'unique:credentials,phone_number',
+            ],
             'password' => [
                 'required',
                 'string',

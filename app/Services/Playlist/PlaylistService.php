@@ -4,11 +4,15 @@ namespace App\Services\Playlist;
 
 use App\Exceptions\Business\PlaylistNotFoundException;
 use App\Models\Playlist;
+use App\Services\Logging\ActivityLogger;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class PlaylistService
 {
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+    ) {}
     //
     // Read operations (cached)
     //
@@ -74,6 +78,13 @@ class PlaylistService
 
         $this->invalidateListCache($userId);
 
+        $this->activityLogger->log(
+            ActivityLogger::PLAYLIST_CREATED,
+            "Playlist '$playlist->title' created",
+            ['playlist_id' => $playlist->id],
+            $userId,
+        );
+
         return $playlist->load(['creator'])->loadCount(['videos as video_count']);
     }
 
@@ -94,6 +105,13 @@ class PlaylistService
         $playlist->update($updateData);
         $this->invalidate($playlist->id, $playlist->created_by);
 
+        $this->activityLogger->log(
+            ActivityLogger::PLAYLIST_UPDATED,
+            "Playlist '$playlist->title' updated",
+            ['playlist_id' => $playlist->id],
+            $userId,
+        );
+
         $playlist = $playlist->fresh(['creator', 'videos']);
 
         return $playlist->loadCount(['videos as video_count']);
@@ -101,6 +119,8 @@ class PlaylistService
 
     public function delete(Playlist $playlist, string $userId): void
     {
+        $playlistId = $playlist->id;
+
         DB::transaction(function () use ($playlist, $userId) {
             // Soft-delete all child videos in the same transaction
             $playlist->videos()->each(function ($video) use ($userId) {
@@ -112,7 +132,14 @@ class PlaylistService
             $playlist->delete();
         });
 
-        $this->invalidate($playlist->id, $playlist->created_by);
+        $this->invalidate($playlistId, $playlist->created_by);
+
+        $this->activityLogger->log(
+            ActivityLogger::PLAYLIST_DELETED,
+            "Playlist deleted",
+            ['playlist_id' => $playlistId],
+            $userId,
+        );
     }
 
     //

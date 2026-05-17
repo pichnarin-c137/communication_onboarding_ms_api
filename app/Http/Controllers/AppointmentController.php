@@ -17,6 +17,7 @@ use App\Services\Appointment\AppointmentService;
 use App\Services\UserSettingsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Throwable;
 
 class AppointmentController extends Controller
 {
@@ -77,7 +78,7 @@ class AppointmentController extends Controller
     }
 
     /**
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function store(CreateAppointmentRequest $request): JsonResponse
     {

@@ -6,6 +6,7 @@ use App\Jobs\SendOnboardingSlaWarning;
 use App\Models\OnboardingRequest;
 use App\Services\Notification\NotificationService;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class OnboardingSlaService
 {
@@ -38,7 +39,7 @@ class OnboardingSlaService
                         ['type' => 'onboarding_request', 'id' => $onboarding->id]
                     );
                 }
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::error('OnboardingSlaService: failed to process breach', [
                     'onboarding_id' => $onboarding->id,
                     'error' => $e->getMessage(),
@@ -64,7 +65,7 @@ class OnboardingSlaService
             try {
                 $onboarding->update(['sla_warning_sent_at' => now()]);
                 SendOnboardingSlaWarning::dispatch($onboarding);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::error('OnboardingSlaService: failed to dispatch SLA warning', [
                     'onboarding_id' => $onboarding->id,
                     'error'         => $e->getMessage(),

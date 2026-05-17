@@ -1,0 +1,30 @@
+meta {
+  name: Restore User
+  type: http
+  seq: 11
+}
+
+patch {
+  url: {{base_url}}/restore-user/{{user_id}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+docs {
+  Admin only. Restores a soft-deleted user. The user can log in again after restoration.
+  Only works on soft-deleted users — will fail if the user was hard-deleted.
+
+  Response:
+  {
+    "success": true,
+    "message": "User restored successfully",
+    "data": {
+      "user_id": "uuid",
+      "email": "user@example.com"
+    }
+  }
+}

@@ -3,6 +3,7 @@
 namespace App\Exceptions\Business;
 
 use App\Exceptions\BaseException;
+use Throwable;
 
 class TelegramSetupException extends BaseException
 {
@@ -12,7 +13,7 @@ class TelegramSetupException extends BaseException
         string $message = 'Telegram setup failed',
         int $httpStatusCode = 422,
         int $code = 0,
-        ?\Throwable $previous = null,
+        ?Throwable $previous = null,
         array $context = []
     ) {
         $this->httpStatusCode = $httpStatusCode;

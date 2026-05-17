@@ -11,6 +11,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class SendAppointmentReminder implements ShouldQueue
 {
@@ -47,7 +48,7 @@ class SendAppointmentReminder implements ShouldQueue
         );
     }
 
-    public function failed(\Throwable $e): void
+    public function failed(Throwable $e): void
     {
         Log::error('SendAppointmentReminder: failed after all retries.', [
             'appointment_id' => $this->appointment->id,

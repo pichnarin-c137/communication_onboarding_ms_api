@@ -1,0 +1,72 @@
+meta {
+  name: Create User
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{base_url}}/create-user
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+body:json {
+  {
+    "role": "trainer",
+    "email": "sokha.chan@example.com",
+    "username": "sokhachan02",
+    "phone_number": "+85510999888",
+    "password": "Password123!",
+    "password_confirmation": "Password123!"
+  }
+}
+
+body:multipart-form {
+  first_name: John
+  last_name: Doe
+  dob: 1995-06-15
+  address: 123 Main St, Phnom Penh
+  gender: male
+  nationality: Cambodian
+  role: trainer
+  email: trainer@example.com
+  username: trainer_john
+  phone_number: +85512345678
+  password: Trainer@1234
+  password_confirmation: Trainer@1234
+  contact_first_name: Jane
+  contact_last_name: Doe
+  contact_relationship: Spouse
+  contact_phone_number: +85598765432
+  contact_address: 123 Main St, Phnom Penh
+}
+
+docs {
+  Admin only. Creates a new user with any role (admin | sale | trainer).
+  All document files are optional. OTP is sent to the email after creation.
+  
+  Optional file fields (attach via Bruno file picker):
+  - professtional_photo: jpeg/jpg/png, max 5MB
+  - nationality_card: jpeg/jpg/png/pdf, max 5MB
+  - family_book: jpeg/jpg/png/pdf, max 5MB
+  - birth_certificate: jpeg/jpg/png/pdf, max 5MB
+  - degreee_certificate: jpeg/jpg/png/pdf, max 5MB
+  
+  Optional text fields:
+  - social_media: URL
+  - contact_social_media: URL
+  
+  Response (201):
+  {
+    "success": true,
+    "message": "User created successfully. OTP sent to email.",
+    "data": {
+      "user_id": "uuid",
+      "email": "trainer@example.com"
+    }
+  }
+}

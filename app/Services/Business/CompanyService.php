@@ -4,10 +4,14 @@ namespace App\Services\Business;
 
 use App\Exceptions\Business\CompanyNotFoundException;
 use App\Models\Company;
+use App\Services\Logging\ActivityLogger;
 use Illuminate\Support\Facades\Cache;
 
 class CompanyService
 {
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+    ) {}
     public function list(array $filters, int $perPage, int $page): array
     {
         $filterHash = md5(serialize($filters));
@@ -76,6 +80,13 @@ class CompanyService
 
         $this->invalidateListCache();
 
+        $this->activityLogger->log(
+            ActivityLogger::COMPANY_CREATED,
+            "Company '$company->name_en' created",
+            ['company_id' => $company->id],
+            $userId,
+        );
+
         return $company->load(['businessType', 'logo', 'patentDocument']);
     }
 
@@ -86,15 +97,29 @@ class CompanyService
         $this->invalidateListCache();
         Cache::forget("company:$company->id");
 
+        $this->activityLogger->log(
+            ActivityLogger::COMPANY_UPDATED,
+            "Company '$company->name_en' updated",
+            ['company_id' => $company->id],
+        );
+
         return $company->fresh(['businessType', 'logo', 'patentDocument']);
     }
 
     public function delete(Company $company): void
     {
+        $companyId = $company->id;
+
         $company->delete();
 
         $this->invalidateListCache();
-        Cache::forget("company:$company->id");
+        Cache::forget("company:$companyId");
+
+        $this->activityLogger->log(
+            ActivityLogger::COMPANY_DELETED,
+            "Company deleted",
+            ['company_id' => $companyId],
+        );
     }
 
     private function invalidateListCache(): void

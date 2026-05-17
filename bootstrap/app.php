@@ -1,8 +1,21 @@
 <?php
 
+use App\Exceptions\BaseException;
+use App\Exceptions\JwtKeyNotFoundException;
+use App\Http\Middleware\AdminOnly;
+use App\Http\Middleware\JwtAuthenticate;
+use App\Http\Middleware\PreventMultiplePatch;
+use App\Http\Middleware\RoleMiddleware;
+use App\Http\Middleware\TrustProxies;
+use App\Http\Middleware\VerifyTelegramWebhookSecret;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -14,34 +27,34 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // Trust Cloudflare proxy headers (tunnel locally, CDN in production)
-        $middleware->prepend(\App\Http\Middleware\TrustProxies::class);
+        $middleware->prepend(TrustProxies::class);
 
         // Register custom middleware aliases
         $middleware->alias([
-            'jwt.auth'          => \App\Http\Middleware\JwtAuthenticate::class,
-            'admin.only'        => \App\Http\Middleware\AdminOnly::class,
-            'role'              => \App\Http\Middleware\RoleMiddleware::class,
-            'telegram.webhook'  => \App\Http\Middleware\VerifyTelegramWebhookSecret::class,
+            'jwt.auth'          => JwtAuthenticate::class,
+            'admin.only'        => AdminOnly::class,
+            'role'              => RoleMiddleware::class,
+            'telegram.webhook'  => VerifyTelegramWebhookSecret::class,
         ]);
 
         // Reject array-body PATCH requests (must patch one resource at a time)
-        $middleware->appendToGroup('api', \App\Http\Middleware\PreventMultiplePatch::class);
+        $middleware->appendToGroup('api', PreventMultiplePatch::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->render(function (\Throwable $e, \Illuminate\Http\Request $request) {
+        $exceptions->render(function (Throwable $e, Request $request) {
             if ($request->is('api/*')) {
                 // Generate or extract request ID for tracking
                 $requestId = $request->header('X-Request-ID', uniqid('req_', true));
 
                 // Handle custom application exceptions with specific HTTP status codes
-                if ($e instanceof \App\Exceptions\BaseException) {
+                if ($e instanceof BaseException) {
                     $body = $e->toArray();
                     $body['request_id'] = $requestId;
                     return response()->json($body, $e->getHttpStatusCode());
                 }
 
                 // Handle validation exceptions (422)
-                if ($e instanceof \Illuminate\Validation\ValidationException) {
+                if ($e instanceof ValidationException) {
                     $errors = collect($e->errors())->flatten()->values()->all();
                     $body = [
                         'success'    => false,
@@ -56,8 +69,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 }
 
                 // Handle model not found (404)
-                if ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
-                    \Illuminate\Support\Facades\Log::warning('Resource not found', [
+                if ($e instanceof ModelNotFoundException) {
+                    Log::warning('Resource not found', [
                         'exception'  => get_class($e),
                         'request_id' => $requestId,
                     ]);
@@ -71,8 +84,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 }
 
                 // Handle database exceptions (500)
-                if ($e instanceof \Illuminate\Database\QueryException) {
-                    \Illuminate\Support\Facades\Log::error('Database error', [
+                if ($e instanceof QueryException) {
+                    Log::error('Database error', [
                         'message'    => $e->getMessage(),
                         'code'       => $e->getCode(),
                         'request_id' => $requestId,
@@ -87,7 +100,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 }
 
                 // Handle all other exceptions (500)
-                \Illuminate\Support\Facades\Log::error('Unhandled exception', [
+                Log::error('Unhandled exception', [
                     'exception'  => get_class($e),
                     'message'    => $e->getMessage(),
                     'file'       => $e->getFile(),
@@ -117,10 +130,10 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         // Report exceptions with additional context
-        $exceptions->report(function (\Throwable $e) {
-            if ($e instanceof \App\Exceptions\BaseException) {
-                \Illuminate\Support\Facades\Log::channel('stack')->log(
-                    $e instanceof \App\Exceptions\JwtKeyNotFoundException ? 'critical' : 'error',
+        $exceptions->report(function (Throwable $e) {
+            if ($e instanceof BaseException) {
+                Log::channel('stack')->log(
+                    $e instanceof JwtKeyNotFoundException ? 'critical' : 'error',
                     $e->getMessage(),
                     [
                         'exception' => get_class($e),

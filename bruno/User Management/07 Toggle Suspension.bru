@@ -1,0 +1,35 @@
+meta {
+  name: Toggle Suspension
+  type: http
+  seq: 7
+}
+
+patch {
+  url: {{base_url}}/users/{{user_id}}/suspend
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+docs {
+  Admin only. Toggles a user's suspension state.
+  Suspended users are blocked at login — they cannot obtain new tokens.
+  Existing access tokens remain valid until they expire (short-lived JWT).
+
+  Response — when suspended:
+  {
+    "success": true,
+    "message": "User suspended successfully",
+    "data": { "user_id": "uuid", "is_suspended": true }
+  }
+
+  Response — when unsuspended:
+  {
+    "success": true,
+    "message": "User unsuspended successfully",
+    "data": { "user_id": "uuid", "is_suspended": false }
+  }
+}

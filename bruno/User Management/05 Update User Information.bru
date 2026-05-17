@@ -1,0 +1,40 @@
+meta {
+  name: Update User Information
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{base_url}}/update-user-information/{{user_id}}
+  body: multipart-form
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+body:multipart-form {
+  first_name: John
+  last_name: Smith
+  address: 456 New St, Phnom Penh
+}
+
+docs {
+  Admin only. Updates personal info and/or emergency contact. All fields are optional (partial update).
+  Does NOT update credentials (email, phone, username) — use Update Credentials for that.
+
+  Updatable fields:
+  - first_name, last_name, dob, address, gender, nationality
+  - professtional_photo, nationality_card, family_book, birth_certificate, degreee_certificate (files)
+  - social_media
+  - contact_first_name, contact_last_name, contact_relationship
+  - contact_phone_number, contact_address, contact_social_media
+
+  Response:
+  {
+    "success": true,
+    "message": "User information updated successfully",
+    "data": { "user_id": "uuid" }
+  }
+}

@@ -16,6 +16,7 @@ use App\Models\OnboardingSystemAnalysis;
 use App\Models\OnboardingTrainerAssignment;
 use App\Models\User;
 use App\Models\Media;
+use App\Services\Logging\ActivityLogger;
 use App\Services\Notification\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -30,6 +31,7 @@ readonly class OnboardingService
         private OnboardingProgressService $progressService,
         private LessonSendService $lessonSendService,
         private NotificationService $notificationService,
+        private ActivityLogger $activityLogger,
     ) {}
 
     // Read operations (cached)
@@ -140,6 +142,12 @@ readonly class OnboardingService
 
         $onboarding->update(['status' => 'in_progress']);
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+
+        $this->activityLogger->log(
+            ActivityLogger::ONBOARDING_STARTED,
+            "Onboarding '$onboarding->request_code' started",
+            ['onboarding_id' => $onboarding->id],
+        );
     }
 
     /**
@@ -197,6 +205,12 @@ readonly class OnboardingService
         });
 
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+
+        $this->activityLogger->log(
+            ActivityLogger::ONBOARDING_COMPLETED,
+            "Onboarding '$onboarding->request_code' completed",
+            ['onboarding_id' => $onboarding->id],
+        );
     }
 
     /**
@@ -212,6 +226,12 @@ readonly class OnboardingService
 
         $onboarding->update(['status' => 'cancelled']);
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+
+        $this->activityLogger->log(
+            ActivityLogger::ONBOARDING_CANCELLED,
+            "Onboarding '$onboarding->request_code' cancelled",
+            ['onboarding_id' => $onboarding->id],
+        );
     }
 
     /**
@@ -253,6 +273,12 @@ readonly class OnboardingService
         }
 
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+
+        $this->activityLogger->log(
+            ActivityLogger::ONBOARDING_HELD,
+            "Onboarding '$onboarding->request_code' put on hold",
+            ['onboarding_id' => $onboarding->id, 'reason' => $reason],
+        );
     }
 
     /**
@@ -291,6 +317,12 @@ readonly class OnboardingService
         }
 
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+
+        $this->activityLogger->log(
+            ActivityLogger::ONBOARDING_RESUMED,
+            "Onboarding '$onboarding->request_code' resumed",
+            ['onboarding_id' => $onboarding->id],
+        );
     }
 
     /**
@@ -336,6 +368,12 @@ readonly class OnboardingService
         }
 
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+
+        $this->activityLogger->log(
+            ActivityLogger::ONBOARDING_REVISION_REQUESTED,
+            "Revision requested for onboarding '$onboarding->request_code'",
+            ['onboarding_id' => $onboarding->id, 'note' => $note],
+        );
     }
 
     /**
@@ -383,6 +421,12 @@ readonly class OnboardingService
         }
 
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+
+        $this->activityLogger->log(
+            ActivityLogger::ONBOARDING_REVISION_ACKNOWLEDGED,
+            "Revision acknowledged for onboarding '$onboarding->request_code'",
+            ['onboarding_id' => $onboarding->id],
+        );
     }
 
     /**
@@ -420,6 +464,12 @@ readonly class OnboardingService
         }
 
         $this->invalidateOnboarding($onboarding->id, $onboarding->trainer_id);
+
+        $this->activityLogger->log(
+            ActivityLogger::ONBOARDING_REOPENED,
+            "Onboarding '$onboarding->request_code' reopened",
+            ['onboarding_id' => $onboarding->id],
+        );
     }
 
     /**
@@ -492,6 +542,12 @@ readonly class OnboardingService
         }
         Cache::store('redis')->forget("onboarding:list:$newTrainerId");
         $this->invalidateOnboarding($onboarding->id, $newTrainerId);
+
+        $this->activityLogger->log(
+            ActivityLogger::ONBOARDING_TRAINER_REASSIGNED,
+            "Trainer reassigned for onboarding '$onboarding->request_code'",
+            ['onboarding_id' => $onboarding->id, 'new_trainer_id' => $newTrainerId],
+        );
     }
 
     /**

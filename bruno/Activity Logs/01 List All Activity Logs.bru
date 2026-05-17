@@ -1,0 +1,76 @@
+meta {
+  name: List All Activity Logs
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/activity-logs
+  body: none
+  auth: none
+}
+
+params:query {
+  user_id: 
+  action: 
+  from: 
+  to: 
+  per_page: 20
+  page: 1
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+docs {
+  Admin only. Returns paginated activity logs for all users.
+  
+  Query params:
+  - user_id: filter by specific user UUID
+  - action: filter by action string. Available Tier 1 values:
+      login | login_failed | logout | password_changed | password_reset | forgot_password
+      user_created | user_updated | user_soft_deleted | user_hard_deleted | user_restored
+      user_suspended | user_unsuspended
+    Available Tier 2 values:
+      appointment_created | appointment_updated | appointment_leave_office
+      appointment_started | appointment_completed | appointment_cancelled | appointment_rescheduled
+      onboarding_started | onboarding_completed | onboarding_cancelled | onboarding_held
+      onboarding_resumed | onboarding_revision_requested | onboarding_revision_acknowledged
+      onboarding_reopened | onboarding_trainer_reassigned | lesson_sent
+      trainer_status_changed
+      playlist_created | playlist_updated | playlist_deleted
+      playlist_video_added | playlist_video_updated | playlist_video_deleted
+      business_type_created | business_type_updated | business_type_deleted
+      company_created | company_updated | company_deleted
+  - from: date filter start (YYYY-MM-DD)
+  - to: date filter end (YYYY-MM-DD)
+  - per_page: 1-100 (default: 20)
+  - page: page number (default: 1)
+  
+  Response:
+  {
+    "success": true,
+    "data": [
+      {
+        "id": "uuid",
+        "user_id": "uuid",
+        "action": "login",
+        "description": "User logged in",
+        "ip_address": "127.0.0.1",
+        "user_agent": "Mozilla/5.0...",
+        "metadata": { "role": "admin" },
+        "created_at": "2026-05-14T08:00:00.000000Z",
+        "user": { "id": "uuid", "first_name": "John", "last_name": "Doe" }
+      }
+    ],
+    "meta": {
+      "total": 250,
+      "per_page": 20,
+      "current_page": 1,
+      "last_page": 13,
+      "from": 1,
+      "to": 20
+    }
+  }
+}

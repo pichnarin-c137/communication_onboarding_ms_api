@@ -1,0 +1,26 @@
+meta {
+  name: Logout
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{base_url}}/auth/logout
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+docs {
+  Revokes the refresh_token cookie and clears it.
+  The access_token remains valid until it expires (short-lived JWT — stateless).
+
+  Response:
+  {
+    "success": true,
+    "message": "Logged out successfully"
+  }
+}

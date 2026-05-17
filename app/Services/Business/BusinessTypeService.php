@@ -5,10 +5,14 @@ namespace App\Services\Business;
 use App\Exceptions\Business\BusinessTypeInUseException;
 use App\Exceptions\Business\BusinessTypeNotFoundException;
 use App\Models\BusinessType;
+use App\Services\Logging\ActivityLogger;
 use Illuminate\Support\Facades\Cache;
 
 class BusinessTypeService
 {
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+    ) {}
     public function list(int $perPage, int $page, string $search = ''): array
     {
         $version = (int) Cache::get('business_type:list_version', 1);
@@ -68,6 +72,12 @@ class BusinessTypeService
 
         $this->invalidateListCache();
 
+        $this->activityLogger->log(
+            ActivityLogger::BUSINESS_TYPE_CREATED,
+            "Business type '$businessType->name_en' created",
+            ['business_type_id' => $businessType->id],
+        );
+
         return $businessType;
     }
 
@@ -77,6 +87,12 @@ class BusinessTypeService
 
         $this->invalidateListCache();
         Cache::forget("business_type:$businessType->id");
+
+        $this->activityLogger->log(
+            ActivityLogger::BUSINESS_TYPE_UPDATED,
+            "Business type '$businessType->name_en' updated",
+            ['business_type_id' => $businessType->id],
+        );
 
         return $businessType->fresh();
     }
@@ -93,10 +109,18 @@ class BusinessTypeService
             );
         }
 
+        $businessTypeId = $businessType->id;
+
         $businessType->delete();
 
         $this->invalidateListCache();
-        Cache::forget("business_type:$businessType->id");
+        Cache::forget("business_type:$businessTypeId");
+
+        $this->activityLogger->log(
+            ActivityLogger::BUSINESS_TYPE_DELETED,
+            "Business type deleted",
+            ['business_type_id' => $businessTypeId],
+        );
     }
 
     private function invalidateListCache(): void
