@@ -39,7 +39,7 @@ class AdminCreateUserRequest extends FormRequest
             'contact_first_name' => ['nullable', 'string', 'max:100', 'regex:/^[a-zA-Z\s]+$/'],
             'contact_last_name' => ['nullable', 'string', 'max:100', 'regex:/^[a-zA-Z\s]+$/'],
             'contact_relationship' => ['nullable', 'in:Spouse,Parent,Sibling,Friend,Relative,Other'],
-            'contact_phone_number' => ['nullable', 'regex:/^\+?[1-9]\d{1,14}$/'],
+            'contact_phone_number' => ['nullable', 'string', 'min:6', 'max:20', 'regex:/^[+0-9][0-9\s\-]*$/'],
             'contact_address' => ['nullable', 'string', 'max:500'],
             'contact_social_media' => ['nullable', 'url', 'max:255'],
 
@@ -56,7 +56,9 @@ class AdminCreateUserRequest extends FormRequest
             'phone_number' => [
                 'required',
                 'string',
-                'regex:/^\+?[1-9]\d{1,14}$/',
+                'min:6',
+                'max:20',
+                'regex:/^[+0-9][0-9\s\-]*$/',
                 'unique:credentials,phone_number',
             ],
             'password' => [
@@ -64,19 +66,16 @@ class AdminCreateUserRequest extends FormRequest
                 'string',
                 'min:8',
                 'max:100',
-                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]+$/',
             ],
-            'password_confirmation' => ['required', 'same:password'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'password.regex' => 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
             'username.regex' => 'Username can only contain letters, numbers, and underscores',
-            'phone_number.regex' => 'Phone number must be in valid international format',
-            'contact_phone_number.regex' => 'Emergency contact phone number must be in valid international format',
+            'phone_number.regex' => 'Phone number can only contain digits, spaces, dashes, and an optional leading +',
+            'contact_phone_number.regex' => 'Emergency contact phone number can only contain digits, spaces, dashes, and an optional leading +',
             'professtional_photo.mimes' => 'Professional photo must be a JPEG, JPG, or PNG file',
             'nationality_card.mimes' => 'Nationality card must be a JPEG, PNG, or PDF file',
             'family_book.mimes' => 'Family book must be a JPEG, PNG, or PDF file',
