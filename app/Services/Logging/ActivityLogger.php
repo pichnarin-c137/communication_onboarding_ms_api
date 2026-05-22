@@ -122,6 +122,10 @@ class ActivityLogger
 
     const COMPANY_DELETED = 'company_deleted';
 
+    const SALE_ROSTER_REPLACED = 'sale_roster_replaced';
+
+    const TRAINER_SUSPENSION_BLOCKED = 'trainer_suspension_blocked';
+
     public function __construct(
         private Request $request
     ) {}

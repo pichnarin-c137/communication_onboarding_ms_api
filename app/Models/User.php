@@ -132,6 +132,32 @@ class User extends Authenticatable
         return $this->hasOne(UserSetting::class);
     }
 
+    public function dedicatedTrainers(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            User::class,
+            'sale_trainer_assignments',
+            'sale_user_id',
+            'trainer_user_id',
+        )
+            ->withPivot(['assigned_at', 'assigned_by_id', 'deleted_at'])
+            ->wherePivotNull('deleted_at')
+            ->withTimestamps();
+    }
+
+    public function dedicatedSales(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            User::class,
+            'sale_trainer_assignments',
+            'trainer_user_id',
+            'sale_user_id',
+        )
+            ->withPivot(['assigned_at', 'assigned_by_id', 'deleted_at'])
+            ->wherePivotNull('deleted_at')
+            ->withTimestamps();
+    }
+
     // Helper methods
     public function isAdmin(): bool
     {

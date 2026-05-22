@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Models\Media;
 use App\Services\Logging\ActivityLogger;
 use App\Services\Notification\NotificationService;
+use App\Services\Sale\SaleTrainerAssignmentService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -32,11 +33,17 @@ readonly class OnboardingService
         private LessonSendService $lessonSendService,
         private NotificationService $notificationService,
         private ActivityLogger $activityLogger,
+        private SaleTrainerAssignmentService $rosterService,
     ) {}
 
     // Read operations (cached)
     public function list(User $user, array $filters = [], int $perPage = 15, int $page = 1): array
     {
+        $role = $user->role->role ?? null;
+        if ($role === 'sale' && ! empty($filters['trainer_id'])) {
+            $this->rosterService->assertTrainerInRoster($user->id, $filters['trainer_id']);
+        }
+
         $cacheKey = $this->listCacheKey($user->id);
         $ttl = config('coms.cache.onboarding_list_ttl', 300);
 
@@ -855,6 +862,7 @@ readonly class OnboardingService
 
         if ($trainerId) {
             Cache::store('redis')->forget($this->listCacheKey($trainerId));
+            $this->rosterService->invalidateCachesContainingTrainer($trainerId);
         }
 
         $creatorId = OnboardingRequest::query()

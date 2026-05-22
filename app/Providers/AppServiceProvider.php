@@ -23,6 +23,7 @@ use App\Services\Onboarding\OnboardingTriggerService;
 use App\Services\Playlist\PlaylistService;
 use App\Services\Playlist\PlaylistTelegramService;
 use App\Services\Playlist\PlaylistVideoService;
+use App\Services\Sale\SaleTrainerAssignmentService;
 use App\Services\Telegram\TelegramGroupService;
 use App\Services\Telegram\TelegramMessageTemplate;
 use App\Services\Telegram\TelegramWebhookService;
@@ -93,6 +94,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(BusinessTypeService::class);
         $this->app->singleton(CompanyService::class);
         $this->app->singleton(DocumentExtractionService::class);
+
+        // Sale dedicated trainer roster
+        $this->app->singleton(SaleTrainerAssignmentService::class);
 
         // Broadcasting
         $this->app->singleton(Pusher::class, function () {

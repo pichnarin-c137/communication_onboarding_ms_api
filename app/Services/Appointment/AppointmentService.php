@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\Logging\ActivityLogger;
 use App\Services\Notification\NotificationService;
 use App\Services\Onboarding\OnboardingTriggerService;
+use App\Services\Sale\SaleTrainerAssignmentService;
 use App\Services\Telegram\TelegramGroupService;
 use App\Services\Tracking\EtaService;
 use App\Services\Tracking\TrainerStatusService;
@@ -43,12 +44,18 @@ readonly class AppointmentService
         private EtaService $etaService,
         private TrainerTrackingService $trackingService,
         private AppointmentFeedbackService $feedbackService,
+        private SaleTrainerAssignmentService $rosterService,
     ) {}
 
     // Read operations (cached)
 
     public function list(User $user, array $filters = [], int $perPage = 15, int $page = 1): array
     {
+        $role = $user->role->role ?? null;
+        if ($role === 'sale' && ! empty($filters['trainer_id'])) {
+            $this->rosterService->assertTrainerInRoster($user->id, $filters['trainer_id']);
+        }
+
         $cacheKey = $this->listCacheKey($user->id);
         $ttl = config('coms.cache.appointment_list_ttl', 300);
 
@@ -168,6 +175,10 @@ readonly class AppointmentService
             }
 
             if (! empty($data['trainer_id'])) {
+                if ($creatorRole === 'sale') {
+                    $this->rosterService->assertTrainerInRoster($creatorId, $data['trainer_id']);
+                }
+
                 $this->conflictService->checkConflict(
                     $data['trainer_id'],
                     $data['scheduled_date'],
@@ -220,7 +231,7 @@ readonly class AppointmentService
      * @throws TrainerScheduleConflictException
      * @throws AppointmentLockedException
      */
-    public function update(Appointment $appt, array $data): Appointment
+    public function update(Appointment $appt, array $data, ?string $updaterRole = null): Appointment
     {
         if ($appt->status !== 'pending') {
             throw new AppointmentLockedException;
@@ -229,6 +240,13 @@ readonly class AppointmentService
         $oldTrainerId = $appt->trainer_id;
 
         if (! empty($data['trainer_id']) && $data['trainer_id'] !== $appt->trainer_id) {
+            if ($updaterRole !== 'admin') {
+                $creator = User::with('role:id,role')->find($appt->creator_id);
+                if ($creator?->role?->role === 'sale') {
+                    $this->rosterService->assertTrainerInRoster($appt->creator_id, $data['trainer_id']);
+                }
+            }
+
             $this->conflictService->checkConflict(
                 $data['trainer_id'],
                 $data['scheduled_date'] ?? $appt->scheduled_date->toDateString(),
@@ -938,6 +956,10 @@ readonly class AppointmentService
     {
         Cache::store('redis')->forget($this->showCacheKey($appointmentId));
         $this->invalidateListsFor($creatorId, ...$trainerIds);
+
+        foreach (array_unique(array_filter($trainerIds)) as $trainerId) {
+            $this->rosterService->invalidateCachesContainingTrainer($trainerId);
+        }
     }
 
     private function invalidateListsFor(?string ...$userIds): void

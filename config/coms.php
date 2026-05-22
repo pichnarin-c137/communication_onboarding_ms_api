@@ -161,4 +161,21 @@ return [
 
     'reports_queue' => env('COMS_REPORTS_QUEUE', 'reports'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Sale Dedicated Trainer Roster
+    |--------------------------------------------------------------------------
+    | Workload caps and minimum roster size for the sale-trainer assignment
+    | feature. Used by SaleTrainerAssignmentService when admins create or
+    | replace a sale user's dedicated trainer roster.
+    */
+    'sale_roster' => [
+        'min_trainers' => env('COMS_SALE_ROSTER_MIN_TRAINERS', 1),
+        'max_concurrent_active_onboardings_per_trainer' => env('COMS_SALE_ROSTER_MAX_ONBOARDINGS', 5),
+        'max_sales_per_trainer' => env('COMS_SALE_ROSTER_MAX_SALES', 3),
+        'block_if_in_progress_appointment' => env('COMS_SALE_ROSTER_BLOCK_IN_PROGRESS', true),
+        'max_pending_appointments_per_trainer' => env('COMS_SALE_ROSTER_MAX_PENDING', 10),
+        'enriched_list_ttl' => env('COMS_SALE_ROSTER_ENRICHED_LIST_TTL', 30),
+    ],
+
 ];
