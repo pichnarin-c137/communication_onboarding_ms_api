@@ -223,6 +223,37 @@ class AnalyticsEndpointSmokeTest extends TestCase
         $this->assertArrayHasKey('cycle_distribution', $resp->json('data'));
     }
 
+    public function test_satisfaction_low_rating_onboarding_alert_resolves_trainer_name(): void
+    {
+        // Regression: low-rating onboarding feedback within the alert window must
+        // resolve the trainer name (previously crashed in lowRatingAlerts()).
+        $s = $this->seedScenario();
+
+        $appt = Appointment::factory()->training()->done()->create([
+            'trainer_id' => $s['trainer']->id, 'creator_id' => $s['sale']->id, 'client_id' => $s['client']->id,
+            'scheduled_date' => '2026-05-18',
+        ]);
+        $onb = OnboardingRequest::factory()->completed()->create([
+            'trainer_id' => $s['trainer']->id, 'client_id' => $s['client']->id, 'appointment_id' => $appt->id,
+            'completed_at' => now(),
+        ]);
+        OnboardingTrainerAssignment::factory()->create([
+            'onboarding_id' => $onb->id, 'trainer_id' => $s['trainer']->id,
+        ]);
+        OnboardingClientFeedback::factory()->low()->create([
+            'onboarding_id' => $onb->id, 'rating' => 1, 'submitted_at' => now()->subDay(),
+        ]);
+
+        $resp = $this->getJson("/api/v1/analytics/satisfaction?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $alerts = collect($resp->json('data.low_rating_alerts'));
+        $onbAlert = $alerts->firstWhere('source', 'onboarding');
+        $this->assertNotNull($onbAlert, 'expected an onboarding low-rating alert');
+        $this->assertSame($s['trainer']->id, $onbAlert['trainer_id']);
+        $this->assertNotNull($onbAlert['trainer_name']);
+    }
+
     public function test_sale_scope_returns_scoped_trainer_ids_in_meta(): void
     {
         $s = $this->seedScenario();
