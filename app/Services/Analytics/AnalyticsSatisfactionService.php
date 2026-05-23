@@ -197,7 +197,9 @@ class AnalyticsSatisfactionService
             $onbIdList = $onbRows->pluck('onboarding_id')->all();
             $trainerMap = $this->attribution->bulkResolve($onbIdList, now());
             $trainerIds = array_values(array_filter($trainerMap));
-            $names = DB::table('users')->whereIn('id', $trainerIds)->pluck(DB::raw("first_name || ' ' || last_name"), 'id')->all();
+            $names = DB::table('users')->whereIn('id', $trainerIds)
+                ->selectRaw("id, first_name || ' ' || last_name as full_name")
+                ->pluck('full_name', 'id')->all();
 
             foreach ($onbRows as $r) {
                 $trainerId = $trainerMap[$r->onboarding_id] ?? $r->trainer_id;
