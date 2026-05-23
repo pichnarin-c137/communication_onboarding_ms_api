@@ -27,6 +27,14 @@ class AdminCreateUserRequest extends FormRequest
             // Required
             'role' => ['required', 'string', 'in:admin,sale,trainer'],
 
+            // Dedicated trainer roster — required when creating a sale user
+            'trainer_ids' => [
+                'required_if:role,sale',
+                'array',
+                'min:'.(int) config('coms.sale_roster.min_trainers', 1),
+            ],
+            'trainer_ids.*' => ['required', 'uuid', 'distinct', 'exists:users,id'],
+
             // Personal Information
             'professtional_photo' => ['nullable', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
             'nationality_card' => ['nullable', 'file', 'mimes:jpeg,jpg,png,pdf', 'max:5120'],
@@ -72,7 +80,14 @@ class AdminCreateUserRequest extends FormRequest
 
     public function messages(): array
     {
+        $minTrainers = (int) config('coms.sale_roster.min_trainers', 1);
+
         return [
+            'trainer_ids.required_if' => 'Sale users must be created with a dedicated trainer roster.',
+            'trainer_ids.min' => "A sale user must have at least $minTrainers dedicated trainer(s).",
+            'trainer_ids.*.uuid' => 'Each trainer id must be a valid UUID.',
+            'trainer_ids.*.distinct' => 'Duplicate trainer ids are not allowed.',
+            'trainer_ids.*.exists' => 'One or more trainer ids do not match an existing user.',
             'username.regex' => 'Username can only contain letters, numbers, and underscores',
             'phone_number.regex' => 'Phone number can only contain digits, spaces, dashes, and an optional leading +',
             'contact_phone_number.regex' => 'Emergency contact phone number can only contain digits, spaces, dashes, and an optional leading +',

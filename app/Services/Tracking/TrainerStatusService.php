@@ -160,6 +160,36 @@ class TrainerStatusService
     }
 
     /**
+     * Get the full status snapshot for a trainer (status + appointment + updated_at).
+     * Returns Redis-cached values when present, falls back to TrainerActivityLog.
+     *
+     * @return array{status: string, current_appointment_id: ?string, status_updated_at: ?string}
+     */
+    public function getStatusData(string $trainerId): array
+    {
+        $cached = Redis::get(TrainerTrackingService::statusKey($trainerId));
+        if ($cached) {
+            $data = json_decode($cached, true) ?: [];
+
+            return [
+                'status' => $data['status'] ?? 'at_office',
+                'current_appointment_id' => $data['appointment_id'] ?? null,
+                'status_updated_at' => $data['updated_at'] ?? null,
+            ];
+        }
+
+        $latest = TrainerActivityLog::where('trainer_id', $trainerId)
+            ->orderByDesc('created_at')
+            ->first();
+
+        return [
+            'status' => $latest?->status ?? 'at_office',
+            'current_appointment_id' => $latest?->appointment_id,
+            'status_updated_at' => $latest?->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
      * Force-reset a trainer to at_office (e.g. when an active appointment is canceled/rescheduled).
      * Flushes trail, cleans up Redis keys, and updates status cache.
      */

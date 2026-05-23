@@ -17,4 +17,5 @@ Route::prefix('v1')->group(function () {
     require __DIR__.'/api/playlists.php';
     require __DIR__.'/api/business.php';
     require __DIR__.'/api/telegram.php';
+    require __DIR__.'/api/analytics.php';
 });

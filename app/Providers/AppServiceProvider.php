@@ -2,6 +2,26 @@
 
 namespace App\Providers;
 
+use App\Models\Appointment;
+use App\Models\AppointmentFeedback;
+use App\Models\OnboardingClientFeedback;
+use App\Models\OnboardingRequest;
+use App\Observers\AnalyticsCacheObserver;
+use App\Observers\OnboardingRequestStatusObserver;
+use App\Services\Analytics\AnalyticsAppointmentService;
+use App\Services\Analytics\AnalyticsEngagementService;
+use App\Services\Analytics\AnalyticsHeatmapService;
+use App\Services\Analytics\AnalyticsOnboardingBreakdownService;
+use App\Services\Analytics\AnalyticsOnboardingFunnelService;
+use App\Services\Analytics\AnalyticsOverviewService;
+use App\Services\Analytics\AnalyticsSalesLeaderboardService;
+use App\Services\Analytics\AnalyticsSatisfactionService;
+use App\Services\Analytics\AnalyticsTrainerLeaderboardService;
+use App\Services\Analytics\AnalyticsTrainerScorecardService;
+use App\Services\Analytics\AnalyticsTrendsService;
+use App\Services\Analytics\Support\AnalyticsCache;
+use App\Services\Analytics\Support\AnalyticsScopeResolver;
+use App\Services\Analytics\Support\TrainerAttribution;
 use App\Services\Appointment\AppointmentAnalyticsService;
 use App\Services\Appointment\AppointmentConflictService;
 use App\Services\Appointment\AppointmentService;
@@ -23,6 +43,7 @@ use App\Services\Onboarding\OnboardingTriggerService;
 use App\Services\Playlist\PlaylistService;
 use App\Services\Playlist\PlaylistTelegramService;
 use App\Services\Playlist\PlaylistVideoService;
+use App\Services\Sale\SaleTrainerAssignmentService;
 use App\Services\Telegram\TelegramGroupService;
 use App\Services\Telegram\TelegramMessageTemplate;
 use App\Services\Telegram\TelegramWebhookService;
@@ -33,6 +54,7 @@ use App\Services\Tracking\TrainerTrackingService;
 use App\Services\R2Service;
 use App\Services\UserSettingsService;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -94,6 +116,25 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(CompanyService::class);
         $this->app->singleton(DocumentExtractionService::class);
 
+        // Sale dedicated trainer roster
+        $this->app->singleton(SaleTrainerAssignmentService::class);
+
+        // Analytics dashboard
+        $this->app->singleton(AnalyticsCache::class);
+        $this->app->singleton(AnalyticsScopeResolver::class);
+        $this->app->singleton(TrainerAttribution::class);
+        $this->app->singleton(AnalyticsOverviewService::class);
+        $this->app->singleton(AnalyticsTrendsService::class);
+        $this->app->singleton(AnalyticsAppointmentService::class);
+        $this->app->singleton(AnalyticsOnboardingFunnelService::class);
+        $this->app->singleton(AnalyticsSatisfactionService::class);
+        $this->app->singleton(AnalyticsTrainerLeaderboardService::class);
+        $this->app->singleton(AnalyticsTrainerScorecardService::class);
+        $this->app->singleton(AnalyticsSalesLeaderboardService::class);
+        $this->app->singleton(AnalyticsHeatmapService::class);
+        $this->app->singleton(AnalyticsEngagementService::class);
+        $this->app->singleton(AnalyticsOnboardingBreakdownService::class);
+
         // Broadcasting
         $this->app->singleton(Pusher::class, function () {
             return new Pusher(
@@ -116,7 +157,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Carbon::serializeUsing(function (Carbon $carbon) {
+        Carbon::serializeUsing(function (CarbonInterface $carbon) {
             $tz = app()->bound('request.timezone')
                 ? app('request.timezone')
                 : config('coms.user_settings.defaults.timezone', 'Asia/Phnom_Penh');
@@ -125,6 +166,13 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->configureRateLimiting();
+
+        // Analytics observers — status history + cache invalidation
+        OnboardingRequest::observe(OnboardingRequestStatusObserver::class);
+        Appointment::observe(AnalyticsCacheObserver::class);
+        OnboardingRequest::observe(AnalyticsCacheObserver::class);
+        AppointmentFeedback::observe(AnalyticsCacheObserver::class);
+        OnboardingClientFeedback::observe(AnalyticsCacheObserver::class);
     }
 
     private function configureRateLimiting(): void
@@ -213,6 +261,17 @@ class AppServiceProvider extends ServiceProvider
                 ->response(fn () => response()->json([
                     'success' => false,
                     'message' => 'Too many requests. Please slow down.',
+                    'error_code' => 'RATE_LIMIT_EXCEEDED',
+                ], 429)->withHeaders(['Retry-After' => 60]));
+        });
+
+        // Analytics namespace — scoped by user
+        RateLimiter::for('analytics', function (Request $request) {
+            return Limit::perMinute(config('coms.analytics.rate_limit_per_min', 60))
+                ->by($request->get('auth_user_id', $request->ip()))
+                ->response(fn () => response()->json([
+                    'success' => false,
+                    'message' => 'Analytics rate limit exceeded. Please slow down.',
                     'error_code' => 'RATE_LIMIT_EXCEEDED',
                 ], 429)->withHeaders(['Retry-After' => 60]));
         });

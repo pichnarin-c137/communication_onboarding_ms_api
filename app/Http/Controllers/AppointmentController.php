@@ -97,7 +97,11 @@ class AppointmentController extends Controller
     public function update(UpdateAppointmentRequest $request, string $id): JsonResponse
     {
         $appointment = Appointment::findOrFail($id);
-        $updated = $this->appointmentService->update($appointment, $request->validated());
+        $updated = $this->appointmentService->update(
+            $appointment,
+            $request->validated(),
+            $request->get('auth_role'),
+        );
 
         return response()->json([
             'success' => true,

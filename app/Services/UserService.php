@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\MailDeliveryException;
 use App\Exceptions\RoleNotFoundException;
 use App\Exceptions\UserNotFoundException;
+use App\Exceptions\Business\TrainerHasActiveCommitmentsException;
 use App\Mail\ForgotPasswordMail;
 use App\Models\Client;
 use App\Models\Credential;
@@ -13,6 +14,7 @@ use App\Models\PersonalInformation;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Logging\ActivityLogger;
+use App\Services\Sale\SaleTrainerAssignmentService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -35,6 +37,7 @@ class UserService
         private readonly OtpService $otpService,
         private readonly ActivityLogger $activityLogger,
         private readonly JwtService $jwtService,
+        private readonly SaleTrainerAssignmentService $rosterService,
     ) {}
 
     /**
@@ -377,11 +380,22 @@ class UserService
         return $query->limit($limit)->get()->toArray();
     }
 
-    public function listTrainers(array $filters = []): array
+    public function listTrainers(array $filters = [], ?string $scopeToSaleUserId = null): array
     {
         $query = User::with(['credential'])
             ->whereHas('role', fn ($q) => $q->where('role', 'trainer'))
-            ->whereHas('credential');
+            ->whereHas('credential')
+            ->where('is_suspended', false);
+
+        if ($scopeToSaleUserId !== null) {
+            $query->whereExists(function ($q) use ($scopeToSaleUserId) {
+                $q->select(DB::raw(1))
+                    ->from('sale_trainer_assignments')
+                    ->whereColumn('sale_trainer_assignments.trainer_user_id', 'users.id')
+                    ->where('sale_trainer_assignments.sale_user_id', $scopeToSaleUserId)
+                    ->whereNull('sale_trainer_assignments.deleted_at');
+            });
+        }
 
         if (! empty($filters['search'])) {
             $search = $filters['search'];
@@ -469,16 +483,32 @@ class UserService
 
     /**
      * @throws UserNotFoundException
+     * @throws TrainerHasActiveCommitmentsException
      */
     public function toggleSuspension(string $userId): User
     {
-        $user = User::find($userId);
+        $user = User::with('role:id,role')->find($userId);
 
         if (! $user) {
             throw new UserNotFoundException('User not found', 0, null, ['user_id' => $userId]);
         }
 
-        $user->update(['is_suspended' => ! $user->is_suspended]);
+        $willSuspend = ! $user->is_suspended;
+
+        if ($willSuspend && $user->role?->role === 'trainer') {
+            try {
+                $this->rosterService->assertCanSuspendOrSoftDeleteTrainer($userId);
+            } catch (TrainerHasActiveCommitmentsException $e) {
+                $this->activityLogger->log(
+                    ActivityLogger::TRAINER_SUSPENSION_BLOCKED,
+                    'Trainer suspension blocked due to active commitments',
+                    ['target_user_id' => $userId] + $e->getContext(),
+                );
+                throw $e;
+            }
+        }
+
+        $user->update(['is_suspended' => $willSuspend]);
 
         $this->activityLogger->log(
             $user->is_suspended ? ActivityLogger::USER_SUSPENDED : ActivityLogger::USER_UNSUSPENDED,
@@ -564,21 +594,35 @@ class UserService
 
     /**
      * @throws UserNotFoundException
+     * @throws TrainerHasActiveCommitmentsException
+     * @throws Throwable
      */
     public function softDeleteUser(string $userId): bool
     {
-        $user = User::find($userId);
+        $user = User::with('role:id,role')->find($userId);
 
         if (! $user) {
             throw new UserNotFoundException('User not found', 0, null, ['user_id' => $userId]);
         }
 
-        $result = $user->delete();
+        $role = $user->role?->role;
+
+        if ($role === 'trainer') {
+            $this->rosterService->assertCanSuspendOrSoftDeleteTrainer($userId);
+        }
+
+        $result = DB::transaction(function () use ($user, $userId, $role) {
+            if ($role === 'sale') {
+                $this->rosterService->detachAllForSale($userId);
+            }
+
+            return $user->delete();
+        });
 
         $this->activityLogger->log(
             ActivityLogger::USER_SOFT_DELETED,
             'User soft deleted',
-            ['deleted_user_id' => $userId],
+            ['deleted_user_id' => $userId, 'role' => $role],
         );
 
         return $result;

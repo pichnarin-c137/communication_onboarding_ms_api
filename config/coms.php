@@ -161,4 +161,48 @@ return [
 
     'reports_queue' => env('COMS_REPORTS_QUEUE', 'reports'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Sale Dedicated Trainer Roster
+    |--------------------------------------------------------------------------
+    | Workload caps and minimum roster size for the sale-trainer assignment
+    | feature. Used by SaleTrainerAssignmentService when admins create or
+    | replace a sale user's dedicated trainer roster.
+    */
+    'sale_roster' => [
+        'min_trainers' => env('COMS_SALE_ROSTER_MIN_TRAINERS', 1),
+        'max_concurrent_active_onboardings_per_trainer' => env('COMS_SALE_ROSTER_MAX_ONBOARDINGS', 5),
+        'max_sales_per_trainer' => env('COMS_SALE_ROSTER_MAX_SALES', 3),
+        'block_if_in_progress_appointment' => env('COMS_SALE_ROSTER_BLOCK_IN_PROGRESS', true),
+        'max_pending_appointments_per_trainer' => env('COMS_SALE_ROSTER_MAX_PENDING', 10),
+        'enriched_list_ttl' => env('COMS_SALE_ROSTER_ENRICHED_LIST_TTL', 30),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Analytics Dashboard
+    |--------------------------------------------------------------------------
+    | Tunables for the /analytics/* namespace.
+    | - cache_ttl:        response cache lifetime in seconds (5 min default)
+    | - rate_limit_per_min: throttle:analytics ceiling (60/min/user)
+    | - max_range_days:   reject any window where (to-from) exceeds this
+    | - low_rating_threshold: ratings <= this trigger /satisfaction alerts
+    | - alert_window_days: how far back to scan for low-rating alerts
+    */
+    'analytics' => [
+        // Cache store to use for analytics responses. null = use cache.default (works in tests).
+        // In production set COMS_ANALYTICS_CACHE_STORE=redis for tag-based invalidation.
+        'cache_store'          => env('COMS_ANALYTICS_CACHE_STORE'),
+        'cache_ttl'            => env('COMS_ANALYTICS_CACHE_TTL', 300),
+        'rate_limit_per_min'   => env('COMS_ANALYTICS_RATE_LIMIT', 60),
+        'max_range_days'       => env('COMS_ANALYTICS_MAX_RANGE_DAYS', 365),
+        'business_timezone'    => env('COMS_BUSINESS_TIMEZONE', 'Asia/Phnom_Penh'),
+        'low_rating_threshold' => env('COMS_ANALYTICS_LOW_RATING', 2),
+        'alert_window_days'    => env('COMS_ANALYTICS_ALERT_WINDOW_DAYS', 7),
+        'low_alert_limit'      => env('COMS_ANALYTICS_LOW_ALERT_LIMIT', 20),
+        'sparkline_buckets'    => env('COMS_ANALYTICS_SPARKLINE_BUCKETS', 5),
+        'on_time_threshold_min' => env('COMS_ANALYTICS_ON_TIME_THRESHOLD_MIN', 15),
+        'demo_to_training_window_days' => env('COMS_ANALYTICS_DEMO_TO_TRAINING_DAYS', 30),
+    ],
+
 ];

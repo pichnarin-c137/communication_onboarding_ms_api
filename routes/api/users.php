@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MediaPresignController;
+use App\Http\Controllers\MyDedicatedTrainersController;
+use App\Http\Controllers\SaleTrainerAssignmentController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,11 +21,19 @@ Route::middleware(['jwt.auth', 'throttle:api'])->group(function () {
         Route::delete('/soft-delete-user/{userId}', [UserController::class, 'softDeleteUser']);
         Route::delete('/hard-delete-user/{userId}', [UserController::class, 'hardDeleteUser']);
         Route::patch('/restore-user/{userId}', [UserController::class, 'restoreUser']);
+
+        Route::get('/users/{saleUserId}/dedicated-trainers', [SaleTrainerAssignmentController::class, 'show']);
+        Route::put('/users/{saleUserId}/dedicated-trainers', [SaleTrainerAssignmentController::class, 'replace']);
     });
 
     Route::middleware(['role:admin,sale,trainer'])->prefix('selection')->group(function () {
         Route::get('/trainers-dropdown', [UserController::class, 'listTrainers']);
         Route::get('/clients-dropdown', [UserController::class, 'listClients']);
+    });
+
+    Route::middleware(['role:sale'])->prefix('me')->group(function () {
+        Route::get('/dedicated-trainers', [MyDedicatedTrainersController::class, 'index']);
+        Route::get('/dedicated-trainers/{trainerId}/overview', [MyDedicatedTrainersController::class, 'overview']);
     });
 
     Route::middleware(['role:sale,trainer'])->group(function () {

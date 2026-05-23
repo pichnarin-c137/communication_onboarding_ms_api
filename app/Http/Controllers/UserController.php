@@ -6,6 +6,7 @@ use App\Exceptions\UserNotFoundException;
 use App\Http\Requests\AdminCreateUserRequest;
 use App\Http\Requests\UpdateUserCredentialsRequest;
 use App\Http\Requests\UpdateUserInformationRequest;
+use App\Services\Sale\SaleTrainerAssignmentService;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,8 @@ use Illuminate\Http\Request;
 class UserController extends Controller
 {
     public function __construct(
-        private readonly UserService $userService
+        private readonly UserService $userService,
+        private readonly SaleTrainerAssignmentService $rosterService,
     ) {}
 
     public function getProfile(Request $request): JsonResponse
@@ -72,7 +74,11 @@ class UserController extends Controller
             'search', 'sort_by', 'sort_order', 'limit',
         ]);
 
-        $trainers = $this->userService->listTrainers($filters);
+        $scopeToSaleUserId = $request->get('auth_role') === 'sale'
+            ? $request->get('auth_user_id')
+            : null;
+
+        $trainers = $this->userService->listTrainers($filters, $scopeToSaleUserId);
 
         return response()->json([
             'success' => true,
@@ -115,12 +121,23 @@ class UserController extends Controller
             $emergencyContactData
         );
 
+        $rosterPayload = null;
+        if (($userData['role'] ?? null) === 'sale') {
+            $result = $this->rosterService->replaceRoster(
+                saleUserId: $user->id,
+                trainerUserIds: $request->input('trainer_ids', []),
+                assignedByUserId: $request->get('auth_user_id'),
+            );
+            $rosterPayload = $result['roster'];
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'User created successfully. OTP sent to email.',
             'data' => [
                 'user_id' => $user->id,
                 'email' => $user->credential->email,
+                'dedicated_trainers' => $rosterPayload,
             ],
         ], 201);
     }
