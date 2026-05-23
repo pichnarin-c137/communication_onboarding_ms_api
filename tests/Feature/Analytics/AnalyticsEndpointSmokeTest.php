@@ -1,0 +1,236 @@
+<?php
+
+namespace Tests\Feature\Analytics;
+
+use App\Models\Appointment;
+use App\Models\AppointmentFeedback;
+use App\Models\AppointmentFeedbackToken;
+use App\Models\Client;
+use App\Models\FeedbackRespondent;
+use App\Models\OnboardingClientFeedback;
+use App\Models\OnboardingRequest;
+use App\Models\OnboardingTrainerAssignment;
+use App\Models\SaleTrainerAssignment;
+use Tests\TestCase;
+
+class AnalyticsEndpointSmokeTest extends TestCase
+{
+    private string $from = '2026-04-01';
+    private string $to = '2026-05-22';
+
+    private function seedScenario(): array
+    {
+        $admin = $this->createAdmin();
+        $sale = $this->createUser(['role' => 'sale']);
+        $trainer = $this->createUser(['role' => 'trainer']);
+        $client = Client::factory()->create(['assigned_sale_id' => $sale->id]);
+
+        SaleTrainerAssignment::factory()->create([
+            'sale_user_id' => $sale->id,
+            'trainer_user_id' => $trainer->id,
+        ]);
+
+        // Mix of appointment outcomes during period
+        Appointment::factory()->count(3)->onTime()->create([
+            'trainer_id' => $trainer->id, 'creator_id' => $sale->id, 'client_id' => $client->id,
+            'scheduled_date' => '2026-05-10',
+        ]);
+        Appointment::factory()->late()->create([
+            'trainer_id' => $trainer->id, 'creator_id' => $sale->id, 'client_id' => $client->id,
+            'scheduled_date' => '2026-05-11',
+        ]);
+        Appointment::factory()->cancelled()->create([
+            'trainer_id' => $trainer->id, 'creator_id' => $sale->id, 'client_id' => $client->id,
+            'scheduled_date' => '2026-05-12',
+        ]);
+        Appointment::factory()->noShow()->create([
+            'trainer_id' => $trainer->id, 'creator_id' => $sale->id, 'client_id' => $client->id,
+            'scheduled_date' => '2026-05-13',
+        ]);
+        Appointment::factory()->demo()->done()->create([
+            'trainer_id' => $trainer->id, 'creator_id' => $sale->id, 'client_id' => $client->id,
+            'scheduled_date' => '2026-05-09',
+        ]);
+
+        // Onboarding life-cycle
+        $startedAppt = Appointment::factory()->training()->done()->create([
+            'trainer_id' => $trainer->id, 'creator_id' => $sale->id, 'client_id' => $client->id,
+            'scheduled_date' => '2026-05-05',
+        ]);
+        $onb = OnboardingRequest::factory()->completed()->create([
+            'trainer_id' => $trainer->id, 'client_id' => $client->id, 'appointment_id' => $startedAppt->id,
+            'completed_at' => now(),
+        ]);
+        OnboardingTrainerAssignment::factory()->create([
+            'onboarding_id' => $onb->id, 'trainer_id' => $trainer->id,
+        ]);
+
+        // Feedback (one good onboarding, one low appointment)
+        OnboardingClientFeedback::factory()->create([
+            'onboarding_id' => $onb->id, 'rating' => 5, 'submitted_at' => now(),
+        ]);
+
+        return compact('admin', 'sale', 'trainer', 'client', 'onb');
+    }
+
+    public function test_overview_admin_returns_aggregated_kpis(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/overview?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $kpis = $resp->json('data.kpis');
+        $this->assertArrayHasKey('appointments_total', $kpis);
+        $this->assertArrayHasKey('completion_rate', $kpis);
+        $this->assertGreaterThan(0, $kpis['appointments_total']['value']);
+    }
+
+    public function test_trends_returns_buckets_for_completion_rate(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/trends?from={$this->from}&to={$this->to}&metric=completion_rate", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $this->assertSame('completion_rate', $resp->json('data.metric'));
+        $this->assertSame('week', $resp->json('data.group_by'));
+        $this->assertIsArray($resp->json('data.series'));
+    }
+
+    public function test_appointments_breakdown_returns_status_and_location_pcts(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/appointments?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $this->assertArrayHasKey('by_status', $resp->json('data'));
+        $this->assertArrayHasKey('done', $resp->json('data.by_status'));
+        $this->assertArrayHasKey('demo_to_training_conversion', $resp->json('data'));
+    }
+
+    public function test_onboarding_funnel_returns_seven_stages_for_admin(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/onboarding-funnel?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $stages = $resp->json('data.stages');
+        $this->assertCount(7, $stages);
+        $keys = array_column($stages, 'key');
+        $this->assertSame(['demo_created', 'demo_done', 'training_created', 'training_done', 'onboarding_started', 'onboarding_completed', 'feedback_submitted'], $keys);
+    }
+
+    public function test_onboarding_funnel_forbidden_for_trainer(): void
+    {
+        $trainer = $this->createUser(['role' => 'trainer']);
+
+        $this->getJson("/api/v1/analytics/onboarding-funnel?from={$this->from}&to={$this->to}", $this->authHeadersFor($trainer))
+            ->assertStatus(403);
+    }
+
+    public function test_satisfaction_returns_summary_distribution_trend(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/satisfaction?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $this->assertArrayHasKey('summary', $resp->json('data'));
+        $this->assertArrayHasKey('distribution', $resp->json('data'));
+        $this->assertArrayHasKey('trend', $resp->json('data'));
+        $this->assertArrayHasKey('low_rating_alerts', $resp->json('data'));
+    }
+
+    public function test_trainers_leaderboard_for_admin(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/trainers?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $this->assertArrayHasKey('rows', $resp->json('data'));
+        $this->assertArrayHasKey('meta', $resp->json('data'));
+        $this->assertGreaterThan(0, count($resp->json('data.rows')));
+    }
+
+    public function test_trainer_scorecard_admin_can_view_any_trainer(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/trainers/{$s['trainer']->id}?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $this->assertSame($s['trainer']->id, $resp->json('data.trainer.id'));
+        $this->assertArrayHasKey('kpis', $resp->json('data'));
+    }
+
+    public function test_trainer_self_scorecard(): void
+    {
+        $s = $this->seedScenario();
+
+        $this->getJson("/api/v1/analytics/trainers/{$s['trainer']->id}?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['trainer']))
+            ->assertOk()
+            ->assertJsonPath('data.trainer.id', $s['trainer']->id);
+    }
+
+    public function test_sales_leaderboard_admin_only(): void
+    {
+        $s = $this->seedScenario();
+
+        $this->getJson("/api/v1/analytics/sales?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk()
+            ->assertJsonStructure(['data' => ['rows', 'meta']]);
+
+        $this->getJson("/api/v1/analytics/sales?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['sale']))
+            ->assertStatus(403);
+    }
+
+    public function test_heatmap_admin_only(): void
+    {
+        $s = $this->seedScenario();
+
+        $this->getJson("/api/v1/analytics/heatmap?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk()
+            ->assertJsonStructure(['data' => ['cells', 'max_count', 'total']]);
+
+        $this->getJson("/api/v1/analytics/heatmap?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['sale']))
+            ->assertStatus(403);
+    }
+
+    public function test_engagement_returns_telegram_and_lessons(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/engagement?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $this->assertArrayHasKey('telegram', $resp->json('data'));
+        $this->assertArrayHasKey('lessons', $resp->json('data'));
+    }
+
+    public function test_onboardings_breakdown_returns_totals_rates_cycle(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/onboardings/breakdown?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $this->assertArrayHasKey('totals', $resp->json('data'));
+        $this->assertArrayHasKey('rates', $resp->json('data'));
+        $this->assertArrayHasKey('cycle_distribution', $resp->json('data'));
+    }
+
+    public function test_sale_scope_returns_scoped_trainer_ids_in_meta(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/overview?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['sale']))
+            ->assertOk();
+
+        $this->assertSame('sale', $resp->json('meta.scope.role'));
+        $this->assertContains($s['trainer']->id, $resp->json('meta.scope.scoped_trainer_ids'));
+    }
+}

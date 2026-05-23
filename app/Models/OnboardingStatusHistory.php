@@ -3,15 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class OnboardingClientFeedback extends Model
+class OnboardingStatusHistory extends Model
 {
-    use HasFactory, HasUuids;
+    use HasUuids;
 
-    protected $table = 'onboarding_client_feedbacks';
+    protected $table = 'onboarding_status_history';
 
     public $incrementing = false;
 
@@ -19,19 +18,18 @@ class OnboardingClientFeedback extends Model
 
     protected $fillable = [
         'onboarding_id',
-        'rating',
-        'comment',
-        'submitted_via',
-        'submitted_by_user_id',
-        'submitted_at',
+        'from_status',
+        'to_status',
+        'changed_at',
+        'changed_by_user_id',
+        'reason',
     ];
 
     protected $casts = [
         'id' => 'string',
         'onboarding_id' => 'string',
-        'submitted_by_user_id' => 'string',
-        'rating' => 'integer',
-        'submitted_at' => 'datetime',
+        'changed_by_user_id' => 'string',
+        'changed_at' => 'datetime',
     ];
 
     public function onboarding(): BelongsTo
@@ -39,8 +37,8 @@ class OnboardingClientFeedback extends Model
         return $this->belongsTo(OnboardingRequest::class, 'onboarding_id');
     }
 
-    public function submittedBy(): BelongsTo
+    public function changedBy(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'submitted_by_user_id');
+        return $this->belongsTo(User::class, 'changed_by_user_id');
     }
 }

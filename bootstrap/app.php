@@ -5,6 +5,7 @@ use App\Exceptions\JwtKeyNotFoundException;
 use App\Http\Middleware\AdminOnly;
 use App\Http\Middleware\JwtAuthenticate;
 use App\Http\Middleware\PreventMultiplePatch;
+use App\Http\Middleware\ResolveAnalyticsScope;
 use App\Http\Middleware\RoleMiddleware;
 use App\Http\Middleware\TrustProxies;
 use App\Http\Middleware\VerifyTelegramWebhookSecret;
@@ -35,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.only'        => AdminOnly::class,
             'role'              => RoleMiddleware::class,
             'telegram.webhook'  => VerifyTelegramWebhookSecret::class,
+            'analytics.scope'   => ResolveAnalyticsScope::class,
         ]);
 
         // Reject array-body PATCH requests (must patch one resource at a time)
