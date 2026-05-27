@@ -23,6 +23,8 @@ class AppointmentFeedback extends Model
         'rating',
         'comment',
         'submitted_at',
+        'sentiment_score',
+        'sentiment_label',
     ];
 
     protected $casts = [
@@ -32,6 +34,7 @@ class AppointmentFeedback extends Model
         'respondent_id' => 'string',
         'rating' => 'integer',
         'submitted_at' => 'datetime',
+        'sentiment_score' => 'float',
     ];
 
     public function appointment(): BelongsTo

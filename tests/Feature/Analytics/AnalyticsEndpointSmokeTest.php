@@ -264,4 +264,116 @@ class AnalyticsEndpointSmokeTest extends TestCase
         $this->assertSame('sale', $resp->json('meta.scope.role'));
         $this->assertContains($s['trainer']->id, $resp->json('meta.scope.scoped_trainer_ids'));
     }
+
+    // ── Phase 4: Intelligence endpoints ──────────────────────────────────
+
+    public function test_sentiment_aggregates_stored_scores_and_themes(): void
+    {
+        $s = $this->seedScenario();
+
+        // A commented feedback inside the period — the FeedbackSentimentObserver
+        // classifies it on create. Needs its own onboarding (feedback is unique
+        // per onboarding_id) within the sale's scope.
+        $appt = Appointment::factory()->training()->done()->create([
+            'trainer_id' => $s['trainer']->id, 'creator_id' => $s['sale']->id, 'client_id' => $s['client']->id,
+            'scheduled_date' => '2026-05-08',
+        ]);
+        $onb2 = OnboardingRequest::factory()->completed()->create([
+            'trainer_id' => $s['trainer']->id, 'client_id' => $s['client']->id, 'appointment_id' => $appt->id,
+            'completed_at' => '2026-05-10 10:00:00',
+        ]);
+        OnboardingClientFeedback::factory()->create([
+            'onboarding_id' => $onb2->id,
+            'rating' => 5, 'comment' => 'Excellent trainer, very clear and patient.',
+            'submitted_at' => '2026-05-10 10:00:00',
+        ]);
+
+        $resp = $this->getJson("/api/v1/analytics/sentiment?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $this->assertArrayHasKey('summary', $resp->json('data'));
+        $this->assertArrayHasKey('themes', $resp->json('data'));
+        $this->assertArrayHasKey('representative', $resp->json('data'));
+        $this->assertGreaterThanOrEqual(1, $resp->json('data.summary.analyzed_count'));
+    }
+
+    public function test_sentiment_forbidden_for_trainer(): void
+    {
+        $trainer = $this->createUser(['role' => 'trainer']);
+
+        $this->getJson("/api/v1/analytics/sentiment?from={$this->from}&to={$this->to}", $this->authHeadersFor($trainer))
+            ->assertStatus(403);
+    }
+
+    public function test_anomalies_returns_structure(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/anomalies?from={$this->from}&to={$this->to}", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $this->assertArrayHasKey('anomalies', $resp->json('data'));
+        $this->assertIsArray($resp->json('data.anomalies'));
+        $this->assertArrayHasKey('baseline_window', $resp->json('data'));
+        $this->assertContains('cancellation_rate', $resp->json('data.metrics_monitored'));
+    }
+
+    public function test_anomalies_forbidden_for_trainer(): void
+    {
+        $trainer = $this->createUser(['role' => 'trainer']);
+
+        $this->getJson("/api/v1/analytics/anomalies?from={$this->from}&to={$this->to}", $this->authHeadersFor($trainer))
+            ->assertStatus(403);
+    }
+
+    public function test_cohorts_returns_completion_grid(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/cohorts?from={$this->from}&to={$this->to}&cohort_by=month", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $this->assertSame('month', $resp->json('data.cohort_by'));
+        $this->assertSame('completion', $resp->json('data.metric'));
+        $this->assertIsArray($resp->json('data.cohorts'));
+    }
+
+    public function test_cohorts_forbidden_for_trainer(): void
+    {
+        $trainer = $this->createUser(['role' => 'trainer']);
+
+        $this->getJson("/api/v1/analytics/cohorts?from={$this->from}&to={$this->to}", $this->authHeadersFor($trainer))
+            ->assertStatus(403);
+    }
+
+    public function test_forecast_returns_history_and_model(): void
+    {
+        $s = $this->seedScenario();
+
+        $resp = $this->getJson("/api/v1/analytics/forecast?from={$this->from}&to={$this->to}&group_by=week&metric=onboardings_completed&horizon=4", $this->authHeadersFor($s['admin']))
+            ->assertOk();
+
+        $this->assertSame('onboardings_completed', $resp->json('data.metric'));
+        $this->assertArrayHasKey('history', $resp->json('data'));
+        $this->assertArrayHasKey('forecast', $resp->json('data'));
+        $this->assertArrayHasKey('model', $resp->json('data'));
+        $this->assertSame(4, $resp->json('data.horizon'));
+    }
+
+    public function test_forecast_rejects_unknown_metric(): void
+    {
+        $s = $this->seedScenario();
+
+        $this->getJson("/api/v1/analytics/forecast?from={$this->from}&to={$this->to}&metric=bogus_metric", $this->authHeadersFor($s['admin']))
+            ->assertStatus(422)
+            ->assertJsonPath('error_code', 'INVALID_METRIC');
+    }
+
+    public function test_forecast_forbidden_for_trainer(): void
+    {
+        $trainer = $this->createUser(['role' => 'trainer']);
+
+        $this->getJson("/api/v1/analytics/forecast?from={$this->from}&to={$this->to}", $this->authHeadersFor($trainer))
+            ->assertStatus(403);
+    }
 }

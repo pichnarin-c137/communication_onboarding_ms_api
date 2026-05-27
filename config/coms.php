@@ -203,6 +203,22 @@ return [
         'sparkline_buckets'    => env('COMS_ANALYTICS_SPARKLINE_BUCKETS', 5),
         'on_time_threshold_min' => env('COMS_ANALYTICS_ON_TIME_THRESHOLD_MIN', 15),
         'demo_to_training_window_days' => env('COMS_ANALYTICS_DEMO_TO_TRAINING_DAYS', 30),
+
+        /*
+        | Phase 4 — Intelligence endpoints (sentiment, anomalies, cohorts, forecast)
+        | - anomaly_sigma_threshold:      z-score above which a bucket is flagged
+        | - anomaly_min_baseline_buckets: minimum history buckets before flagging
+        | - forecast_horizon_default:     periods to project when none requested
+        | - forecast_method:              'holt' | 'linear' | 'moving_avg'
+        | - sentiment_provider:           'lexicon' | 'llm'
+        | - sentiment_cache_ttl:          sentiment is expensive; cache far longer
+        */
+        'anomaly_sigma_threshold'      => env('COMS_ANALYTICS_ANOMALY_SIGMA', 2.0),
+        'anomaly_min_baseline_buckets' => env('COMS_ANALYTICS_ANOMALY_MIN_BASELINE', 6),
+        'forecast_horizon_default'     => env('COMS_ANALYTICS_FORECAST_HORIZON', 4),
+        'forecast_method'              => env('COMS_ANALYTICS_FORECAST_METHOD', 'holt'),
+        'sentiment_provider'           => env('COMS_ANALYTICS_SENTIMENT_PROVIDER', 'lexicon'),
+        'sentiment_cache_ttl'          => env('COMS_ANALYTICS_SENTIMENT_CACHE_TTL', 86400),
     ],
 
 ];

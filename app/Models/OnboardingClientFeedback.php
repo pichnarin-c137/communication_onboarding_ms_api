@@ -24,6 +24,8 @@ class OnboardingClientFeedback extends Model
         'submitted_via',
         'submitted_by_user_id',
         'submitted_at',
+        'sentiment_score',
+        'sentiment_label',
     ];
 
     protected $casts = [
@@ -32,6 +34,7 @@ class OnboardingClientFeedback extends Model
         'submitted_by_user_id' => 'string',
         'rating' => 'integer',
         'submitted_at' => 'datetime',
+        'sentiment_score' => 'float',
     ];
 
     public function onboarding(): BelongsTo
