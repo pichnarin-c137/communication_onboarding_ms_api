@@ -3,6 +3,7 @@
 use App\Http\Controllers\Analytics\AnalyticsAppointmentController;
 use App\Http\Controllers\Analytics\AnalyticsEngagementController;
 use App\Http\Controllers\Analytics\AnalyticsHeatmapController;
+use App\Http\Controllers\Analytics\AnalyticsIntelligenceController;
 use App\Http\Controllers\Analytics\AnalyticsOnboardingController;
 use App\Http\Controllers\Analytics\AnalyticsOverviewController;
 use App\Http\Controllers\Analytics\AnalyticsSalesController;
@@ -23,6 +24,12 @@ Route::middleware(['jwt.auth', 'throttle:analytics', 'analytics.scope'])
             Route::get('/onboardings/breakdown', [AnalyticsOnboardingController::class, 'breakdown'])->name('analytics.onboarding.breakdown');
             Route::get('/engagement',            [AnalyticsEngagementController::class, 'index'])->name('analytics.engagement');
             Route::get('/trainers',              [AnalyticsTrainerController::class, 'leaderboard'])->name('analytics.trainers.leaderboard');
+
+            // Phase 4 — Intelligence (sentiment, anomalies, cohorts, forecast)
+            Route::get('/sentiment', [AnalyticsIntelligenceController::class, 'sentiment'])->name('analytics.sentiment');
+            Route::get('/anomalies', [AnalyticsIntelligenceController::class, 'anomalies'])->name('analytics.anomalies');
+            Route::get('/cohorts',   [AnalyticsIntelligenceController::class, 'cohorts'])->name('analytics.cohorts');
+            Route::get('/forecast',  [AnalyticsIntelligenceController::class, 'forecast'])->name('analytics.forecast');
         });
 
         Route::get('/trainers/{id}', [AnalyticsTrainerController::class, 'scorecard'])

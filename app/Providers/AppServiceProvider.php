@@ -7,20 +7,26 @@ use App\Models\AppointmentFeedback;
 use App\Models\OnboardingClientFeedback;
 use App\Models\OnboardingRequest;
 use App\Observers\AnalyticsCacheObserver;
+use App\Observers\FeedbackSentimentObserver;
 use App\Observers\OnboardingRequestStatusObserver;
+use App\Services\Analytics\AnalyticsAnomalyService;
 use App\Services\Analytics\AnalyticsAppointmentService;
+use App\Services\Analytics\AnalyticsCohortService;
 use App\Services\Analytics\AnalyticsEngagementService;
+use App\Services\Analytics\AnalyticsForecastService;
 use App\Services\Analytics\AnalyticsHeatmapService;
 use App\Services\Analytics\AnalyticsOnboardingBreakdownService;
 use App\Services\Analytics\AnalyticsOnboardingFunnelService;
 use App\Services\Analytics\AnalyticsOverviewService;
 use App\Services\Analytics\AnalyticsSalesLeaderboardService;
 use App\Services\Analytics\AnalyticsSatisfactionService;
+use App\Services\Analytics\AnalyticsSentimentService;
 use App\Services\Analytics\AnalyticsTrainerLeaderboardService;
 use App\Services\Analytics\AnalyticsTrainerScorecardService;
 use App\Services\Analytics\AnalyticsTrendsService;
 use App\Services\Analytics\Support\AnalyticsCache;
 use App\Services\Analytics\Support\AnalyticsScopeResolver;
+use App\Services\Analytics\Support\SentimentClassifier;
 use App\Services\Analytics\Support\TrainerAttribution;
 use App\Services\Appointment\AppointmentAnalyticsService;
 use App\Services\Appointment\AppointmentConflictService;
@@ -135,6 +141,13 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AnalyticsEngagementService::class);
         $this->app->singleton(AnalyticsOnboardingBreakdownService::class);
 
+        // Analytics — Phase 4 intelligence
+        $this->app->singleton(SentimentClassifier::class);
+        $this->app->singleton(AnalyticsSentimentService::class);
+        $this->app->singleton(AnalyticsAnomalyService::class);
+        $this->app->singleton(AnalyticsCohortService::class);
+        $this->app->singleton(AnalyticsForecastService::class);
+
         // Broadcasting
         $this->app->singleton(Pusher::class, function () {
             return new Pusher(
@@ -173,6 +186,10 @@ class AppServiceProvider extends ServiceProvider
         OnboardingRequest::observe(AnalyticsCacheObserver::class);
         AppointmentFeedback::observe(AnalyticsCacheObserver::class);
         OnboardingClientFeedback::observe(AnalyticsCacheObserver::class);
+
+        // Populate comment sentiment on new feedback writes (Eloquent create).
+        OnboardingClientFeedback::observe(FeedbackSentimentObserver::class);
+        AppointmentFeedback::observe(FeedbackSentimentObserver::class);
     }
 
     private function configureRateLimiting(): void
