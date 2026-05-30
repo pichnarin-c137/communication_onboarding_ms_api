@@ -202,7 +202,7 @@ class AuthService
 
         $rawToken = bin2hex(random_bytes(32));
         $ttlMinutes = (int) config('coms.password_reset_ttl_minutes', 60);
-        $resetLink = url('/reset-password').'?token='.$rawToken.'&email='.urlencode($email);
+        $resetLink = url('/reset-password') . '?token=' . $rawToken . '&email=' . urlencode($email);
 
         $credential->update([
             'reset_token' => hash('sha256', $rawToken),
@@ -297,7 +297,7 @@ class AuthService
             'id' => $user->id,
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
-            'dob' => $user->dob->format('Y-m-d'),
+            'dob' => $user->dob?->format('Y-m-d'),
             'address' => $user->address,
             'gender' => $user->gender,
             'nationality' => $user->nationality,

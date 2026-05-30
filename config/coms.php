@@ -16,6 +16,7 @@ return [
         'onboarding_show_ttl' => env('COMS_ONBOARDING_SHOW_TTL', 600),     // 10 min
         'onboarding_progress_ttl' => env('COMS_ONBOARDING_PROGRESS_TTL', 300), // 5 min
         'dashboard_ttl' => env('COMS_DASHBOARD_TTL', 180),           // 3 min
+        'crm_pipeline_ttl' => env('COMS_CRM_PIPELINE_TTL', 300),     // 5 min
     ],
 
     /*
@@ -43,6 +44,24 @@ return [
     'onboarding_due_days' => env('COMS_ONBOARDING_DUE_DAYS', 30),
     'feedback_token_ttl_days' => env('COMS_FEEDBACK_TOKEN_TTL_DAYS', 7),
     'password_reset_ttl_minutes' => env('COMS_PASSWORD_RESET_TTL_MINUTES', 60),
+
+    /*
+    |--------------------------------------------------------------------------
+    | CRM Module
+    |--------------------------------------------------------------------------
+    | Enum reference for contacts/deals. Stage flow:
+    |   prospect -> demo_scheduled -> proposal_sent -> negotiating -> won (terminal)
+    |                                                              -> lost (terminal)
+    */
+    'crm' => [
+        'contact_statuses' => ['prospect', 'deal_active', 'won', 'lost'],
+        'deal_sources' => ['referral', 'cold_call', 'website', 'event', 'other'],
+        'deal_stages' => ['prospect', 'demo_scheduled', 'proposal_sent', 'negotiating', 'won', 'lost'],
+        // Stages a deal may be set to via PATCH (terminal stages go through /won and /lost only).
+        'deal_editable_stages' => ['prospect', 'demo_scheduled', 'proposal_sent', 'negotiating'],
+        'deal_terminal_stages' => ['won', 'lost'],
+        'client_code_prefix' => env('COMS_CRM_CLIENT_CODE_PREFIX', 'CL'),
+    ],
 
     /*
     |--------------------------------------------------------------------------

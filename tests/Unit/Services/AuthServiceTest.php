@@ -12,6 +12,7 @@ use App\Models\Credential;
 use App\Services\AuthService;
 use App\Services\JwtService;
 use App\Services\OtpService;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
@@ -94,6 +95,7 @@ class AuthServiceTest extends TestCase
     public function it_sends_otp_during_login()
     {
         Mail::fake();
+        Config::set('otp.bypass_otp', false);
 
         $user = $this->createUser();
 
@@ -233,6 +235,23 @@ class AuthServiceTest extends TestCase
         // Ensure sensitive data is NOT included
         $this->assertArrayNotHasKey('password', $userData);
         $this->assertArrayNotHasKey('otp', $userData);
+    }
+
+    /** @test */
+    public function it_allows_null_dob_in_user_response()
+    {
+        $user = $this->createUser(
+            ['first_name' => 'Jane', 'last_name' => 'Smith', 'dob' => null],
+            ['email' => 'jane-null-dob@example.com']
+        );
+        $credential = $user->credential;
+
+        $otp = $this->generateOtpFor($credential, 10);
+
+        $result = $this->authService->verifyOtpAndIssueTokens('jane-null-dob@example.com', $otp);
+
+        $this->assertArrayHasKey('user', $result);
+        $this->assertNull($result['user']['dob']);
     }
 
     /** @test */
