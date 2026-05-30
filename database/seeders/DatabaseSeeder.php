@@ -23,7 +23,12 @@ class DatabaseSeeder extends Seeder
             BranchSeeder::class,
             ClientLinkAddressSeeder::class,
             BusinessTypeSeeder::class,
+            CrmSeeder::class,
             // HorizonJobTestSeeder::class,
+
+            // Demo analytics dataset — must run last; it reuses the admin/sale/
+            // trainer users created by the seeders above (see AnalyticsDemoSeeder).
+            AnalyticsDemoSeeder::class,
         ]);
     }
 }

@@ -9,9 +9,12 @@ use App\Exceptions\Business\InvalidStatusTransitionException;
 use App\Exceptions\Business\LeaveOfficeNotAllowedException;
 use App\Exceptions\Business\OneAppointmentAtATimeException;
 use App\Exceptions\Business\TrainerScheduleConflictException;
+use App\Events\DemoAppointmentBooked;
+use App\Events\DemoAppointmentCompleted;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Client;
+use App\Models\CrmContact;
 use App\Models\Media;
 use App\Models\User;
 use App\Services\Logging\ActivityLogger;
@@ -159,13 +162,21 @@ readonly class AppointmentService
 
             if (empty($data['title'])) {
                 $client = isset($data['client_id']) ? Client::find($data['client_id']) : null;
+                $contact = (! $client && isset($data['crm_contact_id']))
+                    ? CrmContact::find($data['crm_contact_id'])
+                    : null;
                 $trainerId = $creatorRole === 'trainer'
                     ? $creatorId
                     : ($data['trainer_id'] ?? null);
                 $trainer = $trainerId ? User::find($trainerId) : null;
-                $data['title'] = $client
-                    ? "$client->company_code | $client->company_name | $trainer->first_name $trainer->last_name"
-                    : (($data['appointment_type'] ?? 'training') === 'demo' ? 'Demo Session' : 'Training Session');
+
+                if ($client) {
+                    $data['title'] = "$client->company_code | $client->company_name | $trainer->first_name $trainer->last_name";
+                } elseif ($contact) {
+                    $data['title'] = "Demo | $contact->company_name | $contact->contact_name";
+                } else {
+                    $data['title'] = ($data['appointment_type'] ?? 'training') === 'demo' ? 'Demo Session' : 'Training Session';
+                }
             }
 
             // Trainer creates for themselves — auto-assign and guard against active sessions
@@ -222,6 +233,11 @@ readonly class AppointmentService
         // Telegram hook: notify client group when a training appointment is scheduled
         if (($appointment->appointment_type ?? 'training') === 'training') {
             $this->notifyClientTelegramQuietly($appointment, 'training_scheduled');
+        }
+
+        // CRM bridge: a demo booked against a deal advances it to demo_scheduled.
+        if ($appointment->appointment_type === 'demo' && $appointment->crm_deal_id) {
+            DemoAppointmentBooked::dispatch($appointment->crm_deal_id, $appointment->id);
         }
 
         return $appointment;
@@ -445,6 +461,11 @@ readonly class AppointmentService
 
         if ($appt->appointment_type === 'demo') {
             $this->demoCompletionService->handle($appt);
+
+            // CRM bridge: stamp the linked deal and nudge its owner to advance it.
+            if ($appt->crm_deal_id) {
+                DemoAppointmentCompleted::dispatch($appt->crm_deal_id, $appt->id);
+            }
         }
 
         $this->generateFeedbackTokenQuietly($appt);

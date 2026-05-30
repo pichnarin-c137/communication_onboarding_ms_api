@@ -99,6 +99,19 @@ class DemoUserSeeder extends Seeder
         'bbbbbbbb-1111-2222-3333-888888888889',
     ];
 
+    const TRAINER_USERS = [
+        ['first_name' => 'Dara', 'last_name' => 'Seng'],
+        ['first_name' => 'Malis', 'last_name' => 'Chea'],
+        ['first_name' => 'Rithy', 'last_name' => 'Heng'],
+        ['first_name' => 'Sokha', 'last_name' => 'Lim'],
+        ['first_name' => 'Chantha', 'last_name' => 'Prak'],
+        ['first_name' => 'Vichea', 'last_name' => 'Khun'],
+        ['first_name' => 'Pisey', 'last_name' => 'Nget'],
+        ['first_name' => 'Nika', 'last_name' => 'Srun'],
+        ['first_name' => 'Borey', 'last_name' => 'Touch'],
+        ['first_name' => 'Kunthea', 'last_name' => 'Mean'],
+    ];
+
     public function run(): void
     {
         $saleRole = Role::where('role', 'sale')->firstOrFail();
@@ -124,7 +137,7 @@ class DemoUserSeeder extends Seeder
                     'email' => $saleData['email'],
                     'username' => $saleData['username'],
                     'phone_number' => $saleData['phone_number'],
-                    'password' => Hash::make('1234567890'),
+                    'password' => Hash::make('123456890'),
                 ]);
             }
         }
@@ -149,13 +162,13 @@ class DemoUserSeeder extends Seeder
                 'email' => 'tleanghour67@gmail.com',
                 'username' => 'tleanghour',
                 'phone_number' => '+85510000002',
-                'password' => Hash::make('1234567890'),
+                'password' => Hash::make('123456890'),
             ]);
         }
 
         foreach (self::TRAINER_USER_IDS as $index => $trainerId) {
-            $firstName = 'Trainer' . ($index + 1);
-            $lastName = 'Demo';
+            $firstName = self::TRAINER_USERS[$index]['first_name'];
+            $lastName = self::TRAINER_USERS[$index]['last_name'];
             $email = 'trainer' . ($index + 1) . '@example.com';
             $username = 'trainer' . ($index + 1);
             $phone = '+8551000000' . str_pad(($index + 3), 2, '0', STR_PAD_LEFT); // start after +85510000002
@@ -179,11 +192,11 @@ class DemoUserSeeder extends Seeder
                     'email' => $email,
                     'username' => $username,
                     'phone_number' => $phone,
-                    'password' => Hash::make('1234567890'),
+                    'password' => Hash::make('123456890'),
                 ]);
             }
         }
 
-        $this->command->info('Demo users seeded: 5 sale users, tleanghour / 1234567890, and 10 additional trainer users.');
+        $this->command->info('Demo users seeded: 5 sale users, tleanghour / 123456890, and 10 additional trainer users.');
     }
 }

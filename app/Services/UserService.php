@@ -9,6 +9,7 @@ use App\Exceptions\Business\TrainerHasActiveCommitmentsException;
 use App\Mail\ForgotPasswordMail;
 use App\Models\Client;
 use App\Models\Credential;
+use App\Models\CrmContact;
 use App\Models\EmergencyContact;
 use App\Models\PersonalInformation;
 use App\Models\Role;
@@ -354,14 +355,26 @@ class UserService
     public function listClients(array $filters = []): array
     {
         $query = Client::query()
-            ->select('id', 'company_name', 'company_code', 'phone_number', 'link_address');
+            ->where('is_active', true)
+            ->select('id', 'company_name', 'company_code', 'phone_number', 'link_address')
+            // Flag clients that originated from / are linked to a won CRM deal
+            // (the contact's synced_client_id is the dedupe anchor markWon writes).
+            ->addSelect([
+                'from_crm' => CrmContact::query()
+                    ->selectRaw('1')
+                    ->whereColumn('crm_contacts.synced_client_id', 'clients.id')
+                    ->limit(1),
+            ]);
 
         if (! empty($filters['search'])) {
             $search = $filters['search'];
-            $query->where('company_name', 'like', '%'.$search.'%');
-            $query->orWhere('company_code', 'like', '%'.$search.'%');
-            $query->orWhere('phone_number', 'like', '%'.$search.'%');
-            $query->orWhere('link_address', 'like', '%'.$search.'%');
+            // Group the OR terms so they don't escape the is_active constraint.
+            $query->where(function ($q) use ($search) {
+                $q->where('company_name', 'like', '%'.$search.'%')
+                    ->orWhere('company_code', 'like', '%'.$search.'%')
+                    ->orWhere('phone_number', 'like', '%'.$search.'%')
+                    ->orWhere('link_address', 'like', '%'.$search.'%');
+            });
         }
 
         $sortBy = $filters['sort_by'] ?? 'company_name';
@@ -377,7 +390,14 @@ class UserService
 
         $limit = isset($filters['limit']) ? (int) $filters['limit'] : 20;
 
-        return $query->limit($limit)->get()->toArray();
+        return $query->limit($limit)->get()->map(fn (Client $client) => [
+            'id' => $client->id,
+            'company_name' => $client->company_name,
+            'company_code' => $client->company_code,
+            'phone_number' => $client->phone_number,
+            'link_address' => $client->link_address,
+            'from_crm' => (bool) $client->from_crm,
+        ])->all();
     }
 
     public function listTrainers(array $filters = [], ?string $scopeToSaleUserId = null): array

@@ -27,6 +27,8 @@ class Appointment extends Model
         'status',
         'trainer_id',
         'client_id',
+        'crm_contact_id',
+        'crm_deal_id',
         'creator_id',
         'notes',
         'meeting_link',
@@ -67,6 +69,8 @@ class Appointment extends Model
         'id' => 'string',
         'trainer_id' => 'string',
         'client_id' => 'string',
+        'crm_contact_id' => 'string',
+        'crm_deal_id' => 'string',
         'creator_id' => 'string',
         'start_proof_media' => 'string',
         'end_proof_media' => 'string',
@@ -109,6 +113,16 @@ class Appointment extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class, 'client_id');
+    }
+
+    public function crmContact(): BelongsTo
+    {
+        return $this->belongsTo(CrmContact::class, 'crm_contact_id');
+    }
+
+    public function crmDeal(): BelongsTo
+    {
+        return $this->belongsTo(CrmDeal::class, 'crm_deal_id');
     }
 
     public function students(): HasMany

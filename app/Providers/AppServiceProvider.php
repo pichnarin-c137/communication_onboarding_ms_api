@@ -37,6 +37,8 @@ use App\Services\Appointment\DemoCompletionService;
 use App\Services\Business\BusinessTypeService;
 use App\Services\Business\CompanyService;
 use App\Services\Business\DocumentExtractionService;
+use App\Services\Crm\CrmContactService;
+use App\Services\Crm\CrmDealService;
 use App\Services\Logging\ActivityLogger;
 use App\Services\Notification\NotificationService;
 use App\Services\Notification\TelegramService;
@@ -61,8 +63,13 @@ use App\Services\R2Service;
 use App\Services\UserSettingsService;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use App\Events\DemoAppointmentBooked;
+use App\Events\DemoAppointmentCompleted;
+use App\Listeners\RecordDealDemoCompletion;
+use App\Listeners\SyncDealToDemoScheduled;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Pusher\Pusher;
@@ -124,6 +131,10 @@ class AppServiceProvider extends ServiceProvider
 
         // Sale dedicated trainer roster
         $this->app->singleton(SaleTrainerAssignmentService::class);
+
+        // CRM layer
+        $this->app->singleton(CrmContactService::class);
+        $this->app->singleton(CrmDealService::class);
 
         // Analytics dashboard
         $this->app->singleton(AnalyticsCache::class);
@@ -190,6 +201,11 @@ class AppServiceProvider extends ServiceProvider
         // Populate comment sentiment on new feedback writes (Eloquent create).
         OnboardingClientFeedback::observe(FeedbackSentimentObserver::class);
         AppointmentFeedback::observe(FeedbackSentimentObserver::class);
+
+        // CRM ↔ appointment bridge — keeps the two domains decoupled (no
+        // service-to-service calls; the deal stage follows the demo via events).
+        Event::listen(DemoAppointmentBooked::class, SyncDealToDemoScheduled::class);
+        Event::listen(DemoAppointmentCompleted::class, RecordDealDemoCompletion::class);
     }
 
     private function configureRateLimiting(): void

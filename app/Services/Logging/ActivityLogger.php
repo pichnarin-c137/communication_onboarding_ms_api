@@ -126,6 +126,20 @@ class ActivityLogger
 
     const TRAINER_SUSPENSION_BLOCKED = 'trainer_suspension_blocked';
 
+    const CRM_CONTACT_CREATED = 'crm_contact_created';
+
+    const CRM_CONTACT_UPDATED = 'crm_contact_updated';
+
+    const CRM_CONTACT_DELETED = 'crm_contact_deleted';
+
+    const CRM_DEAL_CREATED = 'crm_deal_created';
+
+    const CRM_DEAL_UPDATED = 'crm_deal_updated';
+
+    const CRM_DEAL_WON = 'crm_deal_won';
+
+    const CRM_DEAL_LOST = 'crm_deal_lost';
+
     public function __construct(
         private Request $request
     ) {}
