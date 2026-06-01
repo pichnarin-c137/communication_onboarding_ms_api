@@ -18,6 +18,7 @@ Route::middleware(['jwt.auth', 'throttle:api'])->group(function () {
         Route::patch('/users/{userId}/credentials', [UserController::class, 'updateCredentials']);
         Route::patch('/users/{userId}/suspend', [UserController::class, 'toggleSuspension']);
         Route::post('/users/{userId}/force-password-reset', [UserController::class, 'forcePasswordReset']);
+        Route::post('/users/{userId}/force-login', [UserController::class, 'forceLogin']);
         Route::delete('/soft-delete-user/{userId}', [UserController::class, 'softDeleteUser']);
         Route::delete('/hard-delete-user/{userId}', [UserController::class, 'hardDeleteUser']);
         Route::patch('/restore-user/{userId}', [UserController::class, 'restoreUser']);

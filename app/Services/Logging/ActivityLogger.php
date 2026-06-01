@@ -62,6 +62,8 @@ class ActivityLogger
 
     const USER_UPDATED = 'user_updated';
 
+    const ADMIN_FORCE_LOGIN = 'admin_force_login';
+
     const APPOINTMENT_CREATED = 'appointment_created';
 
     const APPOINTMENT_UPDATED = 'appointment_updated';

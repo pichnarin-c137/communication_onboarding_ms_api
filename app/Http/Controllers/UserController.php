@@ -6,6 +6,7 @@ use App\Exceptions\UserNotFoundException;
 use App\Http\Requests\AdminCreateUserRequest;
 use App\Http\Requests\UpdateUserCredentialsRequest;
 use App\Http\Requests\UpdateUserInformationRequest;
+use App\Services\AuthService;
 use App\Services\Sale\SaleTrainerAssignmentService;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,7 @@ class UserController extends Controller
     public function __construct(
         private readonly UserService $userService,
         private readonly SaleTrainerAssignmentService $rosterService,
+        private readonly AuthService $authService,
     ) {}
 
     public function getProfile(Request $request): JsonResponse
@@ -36,6 +38,17 @@ class UserController extends Controller
         return response()->json([
             'success' => true,
             'data' => $user,
+        ]);
+    }
+
+    public function forceLogin(Request $request, string $userId): JsonResponse
+    {
+        $tokens = $this->authService->forceLogin($userId, $request->get('auth_user_id'));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Force login successful',
+            'data' => $tokens, // body only — admin's own session cookie is untouched
         ]);
     }
 

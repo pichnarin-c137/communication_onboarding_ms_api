@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\AccountSuspendedException;
+use App\Exceptions\Business\ForceLoginTargetForbiddenException;
 use App\Exceptions\InvalidCredentialsException;
 use App\Exceptions\InvalidOtpException;
 use App\Exceptions\InvalidTokenException;
@@ -10,6 +11,7 @@ use App\Exceptions\MailDeliveryException;
 use App\Exceptions\OtpExpiredException;
 use App\Exceptions\OtpRateLimitException;
 use App\Exceptions\TokenExpiredException;
+use App\Exceptions\UserNotFoundException;
 use App\Exceptions\WrongEmailRegexFormat;
 use App\Mail\ForgotPasswordMail;
 use App\Models\Credential;
@@ -171,6 +173,42 @@ class AuthService
             'refresh_expires_in' => $refreshExpiryMinutes * 60,
             'user' => $this->formatUserResponse($user),
         ];
+    }
+
+    /**
+     * Admin force-login (impersonation): mint a session for a target user
+     * without their password or OTP. Restricted to sale/trainer targets.
+     *
+     * @throws UserNotFoundException
+     * @throws ForceLoginTargetForbiddenException
+     * @throws AccountSuspendedException
+     */
+    public function forceLogin(string $targetUserId, string $adminUserId): array
+    {
+        $user = User::with(['role', 'credential'])->find($targetUserId);
+
+        if (! $user) {
+            throw new UserNotFoundException('User not found', 0, null, ['user_id' => $targetUserId]);
+        }
+
+        if (! in_array($user->role->role, ['sale', 'trainer'], true)) {
+            throw new ForceLoginTargetForbiddenException;
+        }
+
+        if ($user->isSuspended()) {
+            throw new AccountSuspendedException('Cannot force login into a suspended account');
+        }
+
+        $tokens = $this->issueTokens($user, false, null);
+
+        $this->activityLogger->log(
+            ActivityLogger::ADMIN_FORCE_LOGIN,
+            'Admin force-logged-in as user',
+            ['target_user_id' => $user->id, 'target_role' => $user->role->role],
+            $adminUserId,
+        );
+
+        return $tokens;
     }
 
     // Forgot password (unauthenticated)
